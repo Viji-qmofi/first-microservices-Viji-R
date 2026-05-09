@@ -1,0 +1,5 @@
+package com.productcatalog.model;
+
+public class Product {
+
+}

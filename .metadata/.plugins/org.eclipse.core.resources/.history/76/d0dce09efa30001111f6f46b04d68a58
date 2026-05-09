@@ -1,0 +1,5 @@
+package com.productorder.model;
+
+public class Product {
+
+}
