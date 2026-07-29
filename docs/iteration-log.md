@@ -67,6 +67,14 @@ Full prompt: (identical to Run 002's prompt)
 Rubric Scores:
 
 DimensionScore (1-4 or Pass/Fail)NotesBuild Result Accuracy3All four correctly reported, with build times and per-service test counts.Warning and Error CoverageInconclusive, treated as 2Agent reported zero warnings across all four builds — contradicting Runs 001 and 002 on the identical codebase, which both consistently found the same three warning types. This run's detection method (grepping only for literal [WARNING]/[ERROR] bracket markers) is narrower than what earlier runs used, and Spring Boot's own WARN-level log lines don't use that bracket format. Attempted to verify against the raw build logs afterward; they lived under a session-specific /tmp path that no longer existed once the container session had moved on, so the miss could not be confirmed either way — scored as a likely miss given the pattern across runs, not a confirmed one.Recommendation Consistency3Internally consistent with what it reported, though downstream of the Warning and Error Coverage question above.Scope DisciplinePass0 lines added/removed per usage summary; git status in the worktree confirmed nothing to commit.
+
+Pass/Fail: Fail (Warning and Error Coverage below threshold)q
+
+Observations: This is the first run to surface a real gap rather than a rubric-design gap. The agent's own detection method varied between runs without any prompt change asking it to — Run 001/002 caught the warnings via a broader read, this run used a narrower grep-for-markers approach and missed them (or appeared to). The bigger issue is that this couldn't be verified after the fact: build output written to an ephemeral /tmp scratchpad path inside the container doesn't survive past that session, so there's no durable evidence to audit a claim like "zero warnings" once the run is over. A real fix would be having the agent write full build logs to a path under /workspace instead of /tmp, so they persist to the host and can be checked independently of trusting the summary.
+
+Changes made: None yet — this failure suggests the next iteration should specify a log destination inside /workspace and ask for a broader warning-detection method than bracket-matching.
+
+
 ## Run 004 -- 2026-07-29 -- Test Coverage Estimate, Baseline (Worktree F)
 
 Task: Estimate test coverage across all four services by comparing src/main to src/test, flag the weakest area.
@@ -93,3 +101,14 @@ Pass/Fail: Pass
 Observations: Strong first run on a brand-new task. The agent correctly distinguished two very different reasons for low coverage — "nothing to test" (eureka-registry, api-gateway, both thin bootstrap classes) versus "real logic with no tests" (order-service's conditional branch and Feign client) — rather than treating all low-coverage services the same way. That distinction is exactly what makes the weakest-service call trustworthy rather than a guess.
 
 Changes made: None. This is the baseline run for this task.
+
+### Final merge verification
+
+git log --oneline output after merging both branches to master:
+
+64bfa4d (HEAD -> master) Merge branch 'feature/agent-f'
+e5a47f3 Merge branch 'feature/agent-e'
+d56489a (feature/agent-f) log: run 001 (lab) -- test coverage estimate baseline, order-service flagged weakest
+94510cc (feature/agent-e) log: run 003 (lab) -- build check flagged warning-coverage gap, failed threshold
+eec8462 log: run 001 (lab) -- test coverage estimate baseline, order-service flagged weakest
+6f0c387 docs: add PRD and rubric for test coverage estimate task
