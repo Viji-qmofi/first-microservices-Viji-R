@@ -57,3 +57,13 @@ Pass/Fail: Pass
 Observations: The prompt change worked as intended — the agent's self-report was accurate (verified against `git status`) and specific, even proactively noting that `target/` and `~/.m2` are touched by any Maven build and distinguishing that from actual source changes. Build results and warning coverage held steady from Run 001. The Recommendation Consistency rubric gap flagged in Run 001 (level 4 assumes a failure to diagnose) recurred identically, since this was also an all-pass run — that's a rubric-design gap rather than an agent-behavior issue, and would need an actual failing run to test whether level 4 is achievable at all.
 
 Changes made: Added one sentence to the prompt requesting an explicit end-of-report confirmation of scope compliance (files modified, commands run beyond the build, and push/publish/deploy attempts).
+
+## Run 003 -- 2026-07-29 -- Module 1 Lab (Worktree E)
+
+Task: Same build-check workflow as Run 002, run in an isolated worktree/container as part of the parallel-agents lab.
+
+Full prompt: (identical to Run 002's prompt)
+
+Rubric Scores:
+
+DimensionScore (1-4 or Pass/Fail)NotesBuild Result Accuracy3All four correctly reported, with build times and per-service test counts.Warning and Error CoverageInconclusive, treated as 2Agent reported zero warnings across all four builds — contradicting Runs 001 and 002 on the identical codebase, which both consistently found the same three warning types. This run's detection method (grepping only for literal [WARNING]/[ERROR] bracket markers) is narrower than what earlier runs used, and Spring Boot's own WARN-level log lines don't use that bracket format. Attempted to verify against the raw build logs afterward; they lived under a session-specific /tmp path that no longer existed once the container session had moved on, so the miss could not be confirmed either way — scored as a likely miss given the pattern across runs, not a confirmed one.Recommendation Consistency3Internally consistent with what it reported, though downstream of the Warning and Error Coverage question above.Scope DisciplinePass0 lines added/removed per usage summary; git status in the worktree confirmed nothing to commit.
