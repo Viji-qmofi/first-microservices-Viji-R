@@ -1,5 +1,7 @@
 # 1. Quality Rubric — spring-boot-reviewer Agent
 
+**Verification requirement (applies to every dimension below):** A rubric score must be based on the agent's actual output, not its own closing summary of that output. Where a dimension depends on a claimed behavior (e.g., "included code snippets," "found zero warnings"), confirm it against the raw artifact before scoring — an agent's narration of its own work is a claim, not evidence. See the Iteration Log's Lesson Learned entries for the specific incidents that motivated this rule.
+
 ## 1.1 Dimensions
 
 ### 1.1.1 Issue Detection Accuracy

@@ -109,3 +109,15 @@ What the fix was: Replaced "Provide a specific example of how to fix each Critic
 Principle it illustrates: An instruction that asks for an "example" or "specific fix" without naming the expected artifact type will default to whichever interpretation is cheaper to produce — here, an explanation rather than a snippet. Any instruction describing a deliverable needs to name the artifact type explicitly, not just its specificity.
 
 Scope: Applies to any agent whose output includes a "how to fix it," "example," or "recommendation" field — code review, config review, documentation review, or any advisory agent where the gap between "described" and "demonstrated" changes how usable the output actually is.
+
+## Lesson Learned — 2026-07-31
+
+Source: Fix Example Quality verification in Run 003, where the agent's closing summary claimed "I included concrete code snippets for each fix" and this was initially about to be scored at face value before being independently checked. A near-identical situation occurred earlier in the Module 1 build-check task, where a run's "zero warnings" claim also went unverified until the raw evidence was checked.
+
+What was happening wrong: Not the agent this time — the evaluation process. Twice now, a subagent's own narrative summary of its output ("I did X") was nearly treated as evidence that X actually happened, rather than as a claim to be checked against the actual artifact.
+
+What the fix was: Before scoring any rubric dimension based on a claimed behavior, explicitly ask to see the underlying artifact (the actual code snippets, the actual raw output) rather than accepting the agent's closing description of its own work as sufficient.
+
+Principle it illustrates: A subagent's summary or recap is not verification, even when phrased confidently and even when it's describing behavior it was specifically instructed to produce. This applies most to any rubric dimension scored from a claim in the agent's own narration — "the agent said it did X" and "the agent's actual output shows X" are not the same evidence.
+
+Scope: Applies to every agent evaluation in this course, not just spring-boot-reviewer — any dimension scored from the agent's own summary, rather than its raw output, needs that raw output checked before the score is finalized.
