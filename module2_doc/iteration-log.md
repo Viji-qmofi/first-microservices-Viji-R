@@ -93,4 +93,19 @@ Pass/Fail: Pass
 
 Observations: The targeted v2 change worked exactly as intended — Fix Example Quality moved from 3 to 4 with a single, focused instruction change ("actual code snippet... not just a description"), and this was verified by asking to see the actual snippets rather than trusting the agent's own summary claim that it had included them (a claim that, on its own, is exactly the kind of self-report Module 1's "zero warnings" run taught us not to accept at face value). The verified snippets were genuinely correct and specific. The cost stayed essentially flat despite richer output, which is worth knowing: this particular improvement was close to free. The review also went deeper on its own — escalating one finding's severity and catching a new dependency-injection inconsistency — though it's not yet clear whether that's a real effect of the v2 wording change or ordinary run-to-run variance; a fourth run on a different diff would help separate the two.
 
-Changes made: Agent definition bumped v1 -> v2 (see .claude/agents/spring-boot-reviewer.md commit) -- point 4 of the workflow now requires an actual code snippet for every Critical/Warning fix instead of a description.
+Changes made: Agent definition bumped v1 -> v2. Point 4 of the workflow now requires an actual code snippet for every Critical/Warning fix instead of a description.
+
+- v1 (baseline): dce1883 — agent: add spring-boot-reviewer definition v1
+- v2 (this run): a740bd7 — agent: spring-boot-reviewer v2 -- require concrete code snippets for fixes
+
+## Lesson Learned — 2026-07-31
+
+Source: Fix Example Quality gap, first observed in Run 001, confirmed again in Run 002, fixed in Run 003 (commit a740bd7).
+
+What the agent was doing wrong: The agent consistently described fixes in prose ("add a catch-all FeignException branch mapped to 503") rather than providing runnable code, across two separate runs, even though the agent definition already said to "provide a specific example of how to fix" each issue. "Specific example" was ambiguous — the agent consistently interpreted it as a specific explanation, not a specific code artifact.
+
+What the fix was: Replaced "Provide a specific example of how to fix each Critical and Warning item" with "Provide an actual code snippet showing the fix — matching the surrounding method's signature, style, and existing conventions in this repo — not just a description of what the fix should do."
+
+Principle it illustrates: An instruction that asks for an "example" or "specific fix" without naming the expected artifact type will default to whichever interpretation is cheaper to produce — here, an explanation rather than a snippet. Any instruction describing a deliverable needs to name the artifact type explicitly, not just its specificity.
+
+Scope: Applies to any agent whose output includes a "how to fix it," "example," or "recommendation" field — code review, config review, documentation review, or any advisory agent where the gap between "described" and "demonstrated" changes how usable the output actually is.
