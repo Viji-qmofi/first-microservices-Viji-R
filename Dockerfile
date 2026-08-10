@@ -38,3 +38,7 @@ RUN echo 'export PS1="ai-course:\\w# "' >> /root/.bashrc && \
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["/bin/bash"]
+
+# Git identity for commits made inside the container
+RUN git config --global user.name "viji-qmofi" && \
+    git config --global user.email "vijiramu@gmail.com"
