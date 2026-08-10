@@ -121,3 +121,42 @@ What the fix was: Before scoring any rubric dimension based on a claimed behavio
 Principle it illustrates: A subagent's summary or recap is not verification, even when phrased confidently and even when it's describing behavior it was specifically instructed to produce. This applies most to any rubric dimension scored from a claim in the agent's own narration — "the agent said it did X" and "the agent's actual output shows X" are not the same evidence.
 
 Scope: Applies to every agent evaluation in this course, not just spring-boot-reviewer — any dimension scored from the agent's own summary, rather than its raw output, needs that raw output checked before the score is finalized.
+
+## Run 004 -- 2026-08-10 -- Context Management Session (Order-Service Re-Triage)
+
+Agent: spring-boot-reviewer (v2), plus a plain Claude Code session for applying fixes directly.
+
+Task: Real project work -- close out the two outstanding Feign-handling gaps in `ecom-order-service` flagged repeatedly across Runs 001-003 (`placeOrder()` and `viewAllProducts()`), while testing whether the agent correctly tracks a requirement change across one continuous session.
+
+Phases:
+1. **Broad review** -- applied the `placeOrder()` general-`FeignException` fix (503, per the Run 003 snippet), then ran `spring-boot-reviewer` against the change. Active rule: surface and classify every issue by severity, favoring completeness.
+2. **Re-triage under a ship deadline** -- introduced a real constraint: ship by end of day, narrow to the single most production-risky remaining item, and explicitly exclude any fix requiring new test coverage. Active rule: urgency and mergeability outrank completeness.
+
+Requirement that changed: Phase 1's "surface everything" standard was explicitly replaced by Phase 2's "narrow to one item, exclude test-requiring fixes" standard, introduced via a context boundary preamble.
+
+Context boundaries and summaries used:
+- Proactive summary requested at the end of Phase 1, via the `summarize-session` skill, before the constraint change was introduced. Checked against the actual Phase 1 output and confirmed accurate -- correctly showed the fix as applied, `viewAllProducts()` as untouched, and all four outstanding findings (not just the Critical one) carried into Outstanding Work.
+- Explicit context boundary preamble used at the Phase 1 -> Phase 2 transition (per `CLAUDE.md`'s boundary procedure), stating the new task, the two active rules, which Phase 1 rule was no longer active, and the artifact being worked on.
+
+Compaction: Not used. Context volume stayed well within normal bounds for a two-phase session -- consistent with the technique plan's prediction that this task wouldn't need it.
+
+Rubric Scores:
+
+| Dimension | Score (1-4) | Notes |
+|---|---|---|
+| Accuracy | 3 | Correctly recalled and acted on real Phase 1 findings throughout, but fabricated one specific detail: claimed its `viewAllProducts()` fix avoided "the `ResponseEntity<?>` refactor the reviewer originally sketched" -- verified against the full, unedited Phase 1 output, which never mentioned any such refactor. A single invented detail stated confidently as session history, not a pattern of errors, but a real accuracy miss. |
+| Task Adherence | 4 | Cleanly excluded the test-coverage item once told to, correctly narrowed from four items to three before choosing one, left `placeOrder()` untouched as instructed, and kept the actual fix scoped to one method in one file with no interface/contract changes -- matching the "safe and fast" constraint exactly. |
+| Coherence | 4 | The final fix, its stated reasoning, and the actual code change are all consistent with each other and with decisions made earlier in the session. The Accuracy fabrication is a false historical claim, not an internal contradiction -- the final state itself holds together. |
+
+Pass threshold: 3+ on all three dimensions. This run passes.
+
+Evidence:
+- Accuracy: the `ResponseEntity<?>` claim, checked against the pasted full Phase 1 output and confirmed absent.
+- Task Adherence: Phase 2 response explicitly listed three candidates (correctly excluding the test-coverage item) and gave reasoning tied to the deadline constraint for each; `git show --stat 27895c4` confirms only `OrderServiceImpl.java` changed.
+- Coherence: the implemented fix (`ResponseStatusException` in `viewAllProducts()`) matches exactly what Phase 2 said it would do, and `placeOrder()` was confirmed untouched.
+
+Context drift / misfires observed: One fabricated detail (see Accuracy) -- the agent invented a specific claim about what an earlier phase's output contained, rather than either quoting it exactly or declining to characterize it. Notably, this didn't happen at the boundary or in the summary itself (both of which were accurate) -- it happened later, while the agent was explaining its own reasoning in Phase 2, suggesting a clean checkpoint doesn't fully prevent embellishment in later free-form reasoning.
+
+One change for a future run: Add an explicit instruction -- either in the boundary preamble or as a standing project rule -- that any claim about what a prior phase's output said must be quoted verbatim or flagged as uncertain, rather than paraphrased or characterized from memory. The proactive summary alone wasn't sufficient to prevent this, since the fabrication occurred in reasoning that happened after the summary was already confirmed accurate.
+
+Commit: 27895c4 -- fix: harden viewAllProducts() Feign error handling, consistent with placeOrder()
