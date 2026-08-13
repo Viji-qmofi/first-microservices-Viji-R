@@ -27,18 +27,18 @@ public class OrderServiceImpl implements IOrderService{
 		try {
 			product = feignClient.getById(productId);
 		} catch (FeignException.NotFound ex) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND)
-					.body("Product with id "+productId+" not found");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+					"Product with id "+productId+" not found");
 		} catch (FeignException ex) {
-			return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-					.body("Product service is currently unreachable, please try again later");
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+					"Product service is currently unreachable, please try again later");
 		}
 
 		if(product!=null)
 			return ResponseEntity.ok("Order placed successfully for "+product.getProductName());
 		else
-			return ResponseEntity.status(HttpStatus.NOT_FOUND)
-					.body("Product with id "+productId+" not found");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+					"Product with id "+productId+" not found");
 	}
 
 	@Override
