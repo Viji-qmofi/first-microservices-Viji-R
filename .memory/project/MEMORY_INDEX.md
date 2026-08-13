@@ -1,10 +1,10 @@
 # Project Memory Index
 
-Last updated: 2026-08-10
+Last updated: 2026-08-13
 
 ## Active entries
 
-(none yet)
+- decisions/decision-001.md — Feign call failures converted to ResponseStatusException with appropriate HTTP status (503/404). Review by: [90 days from decision-001's date].
 
 ## Archived entries
 

@@ -6,8 +6,10 @@ Across sessions, the agents working on this repo (`spring-boot-reviewer`, plus g
 
 ## Layer 1: Project memory directory
 
+
+
 # Belongs here
-- Current status: `ecom-order-service` still has zero test coverage beyond the boilerplate context-load test (flagged Critical repeatedly across Runs 001-004, not yet actioned)
+- decisions/decision-001.md: Feign call failures are converted to ResponseStatusException with an appropriate HTTP status — the concrete record of the convention described in Layer 2 below.
 - Resolved decision (kept for context, not action): `viewAllProducts()`'s Feign-handling gap was fixed in commit `27895c4`, using the same `ResponseStatusException`/503 pattern as `placeOrder()`
 - Known repo quirk: git commands run inside the Docker container fail against a worktree created via Windows Command Prompt, because the worktree's `.git` pointer file stores an absolute Windows path the Linux container can't resolve
 - Open question: whether to narrow the catch-all `FeignException` handling to distinguish true unreachable/5xx errors from other non-404 failures, and whether to add logging (flagged as a Warning, not yet decided)
@@ -66,3 +68,5 @@ Across sessions, the agents working on this repo (`spring-boot-reviewer`, plus g
 ## Alternatives considered
 
 The convention that Feign call failures should be converted to `ResponseStatusException` with an appropriate HTTP status could reasonably have gone in either Layer 1 (project memory directory, as evolving state) or Layer 2 (knowledge files, as a stable rule). It started as a Layer 1 item — a decision made once, for one method (`placeOrder()`). Once the same pattern was deliberately reapplied to a second method (`viewAllProducts()`) rather than solved differently each time, it graduated to Layer 2: treating it as a stable, human-governed convention rather than mutable state signals that changing it later should require a deliberate, reviewed decision — the same standard already applied to the review checklist itself — rather than something that could quietly drift if a future session reasoned its way to a different pattern.
+
+**Current status:** Empty by design. This project doesn't yet have reference material large or stable enough to warrant indexing separately — the iteration logs described above are the intended future occupant of this layer, but haven't been moved here yet. This will be revisited if the logs grow large enough that loading them by default becomes impractical, or if external framework/API documentation becomes a recurring need.
