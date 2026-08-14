@@ -16,6 +16,8 @@ docker volume create claude-auth
 
 docker run -it --rm \
   -v "$(pwd):/workspace" \
+  -v "%cd%\.memory\knowledge:/workspace/.memory/knowledge:ro" \
+  -v "%cd%\.memory\reference:/workspace/.memory/reference:ro" \
   -v claude-auth:/root/.claude \
   -e ANTHROPIC_API_KEY \
   ecom-agent-sandbox

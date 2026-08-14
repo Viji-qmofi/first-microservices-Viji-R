@@ -34,11 +34,7 @@ public class OrderServiceImpl implements IOrderService{
 					"Product service is currently unreachable, please try again later");
 		}
 
-		if(product!=null)
-			return ResponseEntity.ok("Order placed successfully for "+product.getProductName());
-		else
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-					"Product with id "+productId+" not found");
+		return ResponseEntity.ok("Order placed successfully for "+product.getProductName());
 	}
 
 	@Override
