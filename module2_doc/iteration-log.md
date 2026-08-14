@@ -160,3 +160,70 @@ Context drift / misfires observed: One fabricated detail (see Accuracy) -- the a
 One change for a future run: Add an explicit instruction -- either in the boundary preamble or as a standing project rule -- that any claim about what a prior phase's output said must be quoted verbatim or flagged as uncertain, rather than paraphrased or characterized from memory. The proactive summary alone wasn't sufficient to prevent this, since the fabrication occurred in reasoning that happened after the summary was already confirmed accurate.
 
 Commit: 27895c4 -- fix: harden viewAllProducts() Feign error handling, consistent with placeOrder()
+
+## Run 005 -- 2026-08-13 -- Build and Verify Persistent Memory (Exercise 2.3)
+
+Agent: spring-boot-reviewer (v2, unchanged) plus general Claude Code sessions for memory system construction and repair.
+
+Task: Build a complete, functional three-layer memory system (`.memory/project/`, `.memory/knowledge/`, `.memory/reference/`) for the ongoing `ecom-order-service` Feign-handling workflow, then verify it survives a genuinely fresh session with zero pasted context.
+
+Memory system state at start of this run: Partially built from a prior lesson's Try It activities -- `.memory/project/decisions/` existed but was empty, `MEMORY_INDEX.md` was stale (referenced a decision file that didn't exist), `.memory/knowledge/` had no content file, `.memory/reference/` was an empty placeholder.
+
+### Build phase
+
+- Added `.memory/knowledge/coding-standards.md` (7 standards, covering Feign error handling, DI style, test coverage, test style, REST semantics, dead-code removal, module structure).
+- Updated `MEMORY_INDEX.md` to reference the (at-the-time still missing) `decision-001.md`.
+- Revised `module2_doc/memory-architecture.md` to reflect the actual built system rather than the original plan, including an explicit "empty by design" note for the reference layer.
+- Commit: `9c0b964`.
+
+### Verification attempt 1 -- FAILED
+
+Fresh container, fresh `claude` session, no `--continue`/`--resume`, no pasted memory. Both Startup-Memory and Task-Resumption checks independently discovered, via `git show`/history search, that `decision-001.md` did not actually exist on disk -- `MEMORY_INDEX.md` and `memory-architecture.md` both cited a file that was never created. Root cause: the file-creation step from the prior lesson was never confirmed or committed. Separately, the Task-Resumption check found a real code discrepancy the memory record didn't capture: `viewAllProducts()` already used `ResponseStatusException` (compliant), while `placeOrder()` still manually built a `ResponseEntity<String>` with matching status codes but a different mechanism -- same intent, inconsistent implementation.
+
+### Correction 1 -- write decision-001.md
+
+Asked the agent to write `decision-001.md` using a pre-drafted narrative. The agent refused to write it as given: reading the live code showed the actual order of events was the reverse of what the draft claimed (`viewAllProducts()` was compliant, `placeOrder()` wasn't -- not the other way around). Chose to fix `placeOrder()` first, then record an accurate decision. Commit: `43bfc07`.
+
+### Permission mechanism failure 1 -- chmod bypassed by root
+
+`chmod -R 444 .memory/knowledge/` (set up in the prior lesson) did not actually block root inside the container -- `touch` succeeded despite the `444` mode, because root holds `CAP_DAC_OVERRIDE` by default, which bypasses standard permission-bit checks entirely. Fixed by adding `--cap-drop=DAC_OVERRIDE` to the standard run command, which strips that specific capability. Verified: `touch` inside the container then correctly failed with `Permission denied`.
+
+### Permission mechanism failure 2 -- Windows chmod corruption
+
+After the `--cap-drop` fix, a later `chmod` pass (intended to add back directory execute permission after an over-broad `444` had blocked traversal) left `.memory/knowledge/` and `.memory/reference/` in a broken `d?????????` state -- `stat` itself failed, not just write attempts, for both directories. Root cause judged to be Windows/NTFS bind-mount permission-bit translation through Docker Desktop, consistent with two earlier Windows-specific Docker quirks found elsewhere in this course (the git worktree absolute-path issue, and failure 1 above). Recovered by deleting both directories from the Windows host, restoring `coding-standards.md` from git, and switching enforcement entirely away from `chmod` to Docker's own `:ro` bind mounts on both `.memory/knowledge/` and `.memory/reference/` -- a mechanism that doesn't depend on in-container permission bits at all.
+
+### Agent policy-respecting refusal (notable positive finding)
+
+Asked the agent (not a plain shell) to test the write boundary directly. It declined, citing `CLAUDE.md`'s "never attempt to write to this directory" instruction verbatim, and separately noted it expected the OS-level check to fail regardless. This was unprompted, self-directed compliance -- not a scripted pass. Logged as behavioral evidence, distinct from and complementary to the mechanical test that followed.
+
+### Mechanical verification (human-run, no agent involved)
+
+From a plain container shell (not through `claude`), `touch .memory/knowledge/permission-test.txt` and the reference-layer equivalent both failed with genuine `Permission denied`, confirming the `:ro`-mount fix holds independent of any agent's judgment.
+
+### Verification attempt 2 -- PASSED, with a new finding
+
+Fresh container (with both `:ro` mounts and `--cap-drop`), fresh `claude` session. Both checks passed cleanly:
+- Startup-Memory Check correctly separated the three layers, respected the read-only boundary, and accurately summarized `decision-001.md` and all 7 standards.
+- Task-Resumption Check verified the Feign-handling fix against the live code (not just trusting the record) and confirmed both methods now matched -- then, going further than asked, found a genuinely new, previously unrecorded defect: an orphaned `if(product!=null)/else` branch left in `placeOrder()` after the exception-handling change, a direct violation of the "no orphaned code" standard. Proposed removing the dead branch, adding a test for the actual not-found path (suspecting the existing test exercised the dead branch instead), and updating `decision-001.md` with a follow-up note.
+
+### Closing fix
+
+Applied the agent's three-part proposal: removed the dead branch, added `OrderServiceImplTest.java` covering the not-found path, updated `decision-001.md` with the follow-up. Verified via `git status`/`git diff` that only the intended files changed (plus confirmed pre-existing CRLF churn across other files was untouched by this change). Commit: `825a975`. A small cleanup commit (`e062c8d`) removed two stray duplicate iteration-log files accidentally staged in the same commit.
+
+Rubric Scores (per the exercise's acceptance criteria):
+
+| Criterion | Result |
+|---|---|
+| Three-layer folder structure | Pass |
+| Substantive project-memory Decision Entry | Pass (`decision-001.md`, accurate as of `825a975`) |
+| Substantive Knowledge File | Pass (`coding-standards.md`, 7 standards) |
+| CLAUDE.md explains memory usage | Pass |
+| Knowledge Directory protected from agent edits | Pass -- verified two ways: agent's own policy-respecting refusal, and a human-run mechanical test against the `:ro` mount |
+| Ownership/exclusions/pruning documented | Pass (`memory-architecture.md`, revised) |
+| Fresh-session verification | Pass on attempt 2, after diagnosing and fixing a missing file and two distinct permission-enforcement failures |
+
+Commits: `9c0b964` (initial build), `43bfc07` (placeOrder fix + decision-001), `825a975` (orphan cleanup + test + decision follow-up), `e062c8d` (stray-file cleanup).
+
+Observations: This run's real value wasn't the final passing state -- it was that the fresh-session verification actually did its job twice: it caught a genuinely broken memory record on the first attempt (a cited file that never existed), and even after that was fixed, the agent's own re-verification against live code (rather than trusting the record) surfaced a real, previously-unknown defect on the second attempt. Both permission-mechanism failures were also caught by testing, not assumed -- `chmod` looked correct on paper (`444`) both times it failed. The agent's unprompted refusal to write around its own read-only policy is the strongest single piece of evidence in this run that the memory system is shaping behavior, not just being read passively.
+
+Change for a future run: `chmod`-based enforcement should be treated as unreliable on this Windows/Docker Desktop setup specifically -- default to `:ro` bind mounts for any future read-only requirement in this project rather than permission bits, which have now failed twice for different reasons.
