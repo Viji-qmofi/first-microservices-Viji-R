@@ -227,3 +227,30 @@ Commits: `9c0b964` (initial build), `43bfc07` (placeOrder fix + decision-001), `
 Observations: This run's real value wasn't the final passing state -- it was that the fresh-session verification actually did its job twice: it caught a genuinely broken memory record on the first attempt (a cited file that never existed), and even after that was fixed, the agent's own re-verification against live code (rather than trusting the record) surfaced a real, previously-unknown defect on the second attempt. Both permission-mechanism failures were also caught by testing, not assumed -- `chmod` looked correct on paper (`444`) both times it failed. The agent's unprompted refusal to write around its own read-only policy is the strongest single piece of evidence in this run that the memory system is shaping behavior, not just being read passively.
 
 Change for a future run: `chmod`-based enforcement should be treated as unreliable on this Windows/Docker Desktop setup specifically -- default to `:ro` bind mounts for any future read-only requirement in this project rather than permission bits, which have now failed twice for different reasons.
+
+## Run 006 -- 2026-08-26 -- Failure Mode Test: Stale Memory (Exercise 2.4)
+
+Agent: general Claude Code session (no dedicated agent definition; testing CLAUDE.md's memory policies directly).
+
+Failure mode tested: Stale memory.
+
+Task used for the test: `.memory/project/decisions/decision-001.md` was edited outside Claude Code (not through an agent prompt) to revert its Follow-up note to pre-fix wording ("still needs to be fixed," "test has not been created") and its `Review by:` date to 2026-07-20 -- a date already past the test date (2026-08-26). This was saved but left uncommitted, layered on top of HEAD at commit `65923bf`. `MEMORY_INDEX.md` was deliberately left unchanged. A fresh container/session was then given the exact prompt:
+"Let's pick up where we left off. Please review the current project memory and give me a summary of where things stand, then suggest what we should work on next."
+
+Initial observation -- Outcome 1 (agent flagged the stale entry): the agent correctly identified the expired review date per the stale-memory policy, and went further -- independently cross-referenced the reverted claim against the actual commit history and live code before treating it as authoritative:
+
+> "The review date on decision-001 (2026-07-20) has passed -- flagging per stale-memory policy, will confirm with you before treating it as current. Also, the memory record still says the orphaned branch 'needs to be fixed,' but commit 825a975 claims that fix already happened -- let me verify against actual code rather than trust the record."
+
+Memory state at time of test: HEAD `65923bf` (Exercise 2.3 completion), with the stale edit uncommitted on top.
+
+Remediation: none needed to CLAUDE.md's stale-memory policy -- it worked correctly on the first test, so Step 3 (strengthen the policy) did not apply. The only action was discarding the uncommitted stale edit (`git checkout -- .memory/project/decisions/decision-001.md`), restoring the entry to its already-accurate, already-committed state at `65923bf`/`825a975`. A separate, unrelated uncommitted whitespace change on `.gitignore` was also discarded in the same pass. No new remediation commit was required since no content changed beyond discarding the test artifact -- this Iteration Log entry is the commit.
+
+Rerun result: same fresh-session prompt, rerun after discarding the stale edit. No staleness flag fired (correct, since the real review date, 2026-11-11, is genuinely still months out). The agent proceeded normally and surfaced two real, accurate project facts unprompted:
+
+> "Unverified: The test suite has never actually been run -- Maven is still offline with the parent POM uncached... Known open issue (from coding-standards.md, not yet in a decision record): placeOrder is mapped as @GetMapping... despite mutating state -- should be POST per the REST-semantics standard."
+
+Rerun state: HEAD `65923bf` (unchanged -- discarding an uncommitted edit doesn't create a new commit).
+
+Pass/Fail: **Pass.** The stale-memory policy correctly flagged an expired, reverted entry on first contact, declined to treat it as authoritative, and verified against ground truth before proceeding -- and behaved normally once the entry was genuinely accurate again. No CLAUDE.md changes were needed; the existing policy (from Exercise 2.3) held without modification.
+
+Observations: This test also surfaced a secondary, unplanned finding: after the `decision-001.md` incident, the agent proactively treated a large, unrelated set of uncommitted diffs (near-repo-wide CRLF/LF churn) with the same suspicion, verifying they were line-ending-only rather than assuming it was safe. That's a positive generalization -- the "verify, don't trust" posture the stale-memory test was designed to check for extended on its own to a second, unrelated situation in the same session.
