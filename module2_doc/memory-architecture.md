@@ -70,3 +70,19 @@ Across sessions, the agents working on this repo (`spring-boot-reviewer`, plus g
 The convention that Feign call failures should be converted to `ResponseStatusException` with an appropriate HTTP status could reasonably have gone in either Layer 1 (project memory directory, as evolving state) or Layer 2 (knowledge files, as a stable rule). It started as a Layer 1 item — a decision made once, for one method (`placeOrder()`). Once the same pattern was deliberately reapplied to a second method (`viewAllProducts()`) rather than solved differently each time, it graduated to Layer 2: treating it as a stable, human-governed convention rather than mutable state signals that changing it later should require a deliberate, reviewed decision — the same standard already applied to the review checklist itself — rather than something that could quietly drift if a future session reasoned its way to a different pattern.
 
 **Current status:** Empty by design. This project doesn't yet have reference material large or stable enough to warrant indexing separately — the iteration logs described above are the intended future occupant of this layer, but haven't been moved here yet. This will be revisited if the logs grow large enough that loading them by default becomes impractical, or if external framework/API documentation becomes a recurring need.
+
+## Data Classification
+
+Before writing anything to a memory file, classify it:
+
+- **Public** — Safe to commit to the repo and share broadly. Most project decisions and coding standards fall here.
+
+- **Internal** — Safe within the team but not for public repos. Store in a non-committed volume or .gitignore the containing folder.
+
+- **Confidential** — Sensitive business data. Do not store in agent memory. Retrieve from secure systems on demand.
+
+- **Secret** — Credentials, tokens, API keys, PII. Must never appear in any memory file. If the agent encounters a secret during a run, use it for the immediate task only and explicitly do not write it to any memory layer. Reference the environment variable name instead.
+
+### Guardrails
+
+A pre-commit hook (scripts/hooks/pre-commit, activated via core.hooksPath) scans .memory/ for common credential patterns before each commit. If a pattern is found, the commit is blocked.
