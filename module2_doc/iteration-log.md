@@ -287,4 +287,41 @@ Pass/Fail: **Pass.** The soft guard (write policy) already prevented the failure
 
 Observations: This is the strongest evidence in the course so far that memory policies genuinely shape behavior rather than being decorative -- the failure had to be deliberately forced past an existing refusal to even reproduce it. The naive grep pattern's false positive (a coincidental substring match) is a real, minor limitation worth knowing but not worth fixing for this exercise's scope.
 
+## Run 008 -- 2026-09-01 -- Module 2 Lab, Track 1 (Real Work + Memory Strengthening)
+
+Agent: plain Claude Code sessions (no dedicated agent definition — Track 1 specifically uses built-in capabilities rather than `spring-boot-reviewer`).
+
+Starting state: tagged `lesson-4-lab-start` before any lab work began, per the lab's setup requirement.
+
+Task: continue real, previously-identified project work rather than a synthetic exercise — resolve the Maven build-verification blocker recorded in `decision-001.md`, fix the standing `@GetMapping`/`@PostMapping` violation on `placeOrder`, and capture whatever a future session couldn't reconstruct from the repo alone.
+
+### Real work completed
+
+1. **Maven build investigation.** The "offline, no cached parent POM" blocker recorded in `decision-001.md` (from the 2026-08-14 session) turned out to be specific to that session's sandbox, not a lasting project constraint. A real `./mvnw test` (no `-o` flag) in this session resolved dependencies from `repo.maven.apache.org` and passed cleanly: `BUILD SUCCESS`, 4/4 tests, including all three `OrderServiceImplTest` cases that had never actually been run before. `decision-001.md` was updated with a dated follow-up recording this, explicitly framed as "environment-specific to that session, not a structural project issue" -- an important distinction, since the original wording read as a persistent constraint rather than a one-time condition.
+2. **`@GetMapping` -> `@PostMapping` fix.** `OrderController.placeOrder` was mapped `@GetMapping` despite mutating state (creating an order), a standing violation of `coding-standards.md`'s REST method semantics rule. Fixed to `@PostMapping`. No test updates needed (the only test on `placeOrder` exercises the service layer via Mockito, not the HTTP mapping). Verified with a real, passing `./mvnw test` run -- nothing broke.
+3. **Breaking-change consequence identified and recorded, not just the code change.** Changing the HTTP verb means any external caller hitting `order-service` directly (bypassing the API gateway) with GET now gets `405 Method Not Allowed`. This is exactly the kind of context a future session couldn't reconstruct from the diff alone -- captured explicitly in a new `decision-003.md`, not left implicit.
+
+### Memory updates
+
+- `decision-001.md` -- build-status follow-up added (see above).
+- `decision-003.md` -- new entry for the HTTP-method fix, including the breaking-change consequence for direct callers.
+- `MEMORY_INDEX.md` -- updated for `decision-003.md`.
+- `coding-standards.md` -- the stale "`placeOrder` known, not-yet-fixed issue" caveat removed from the REST method semantics standard, since it's now fixed. This edit had to be made by hand, outside Claude Code, on the host -- `.memory/knowledge/` is genuinely read-only to the container (`:ro` mount), and the agent correctly declined to write to it and explained why rather than attempting a workaround.
+
+### Notable incident -- pre-commit hook false positive, for real this time
+
+The commit was initially blocked by the credential-scanning pre-commit hook (Exercise 2.4) on a false-positive match: the literal substring `sk-` inside "Task-Resumption" in `decision-001.md`'s pre-existing rationale text (the same false positive identified during Run 007's grep testing, but this time it actually blocked a real commit rather than just showing up in a manual `grep`). Resolved by rewording to "task resumption" -- meaning-preserving, flagged explicitly as an incidental change outside the scope of what was asked. This is real evidence the hook has a genuine precision cost, not just a theoretical one noted in a log.
+
+Commit: `8e3dac8` -- "fix: unblock Maven build verification, fix placeOrder HTTP method to POST, record decision-003" (5 files: `OrderController.java`, `decision-001.md`, `decision-003.md`, `MEMORY_INDEX.md`, `coding-standards.md`).
+
+### Fresh-session verification
+
+New container, fresh `claude` session (no `--continue`/`--resume`), asked for a status summary on the build, `placeOrder`'s HTTP method, and any outstanding REST-semantics violations, explicitly instructed to base the answer only on current repo/memory state.
+
+Result: correct on all three counts -- reported the build as verified working (not hedged, not still describing it as offline), correctly identified `placeOrder` as POST with the breaking-change consequence, and correctly reported no outstanding REST-semantics violations. Went beyond the minimum: independently re-scanned the other controller/Feign endpoints for any *other* GET/POST mismatch (found none), without being asked to.
+
+Pass/Fail: **Pass.** Real project work completed, correctly captured in memory with enough context (not just "what changed" but "why it was previously blocked" and "what breaks for existing callers"), and a fresh session correctly reconstructed all of it independently.
+
+Observations: This lab is the first time the memory system's read-only boundary blocked a *legitimate* edit request (the `coding-standards.md` caveat removal) rather than a deliberately malicious test -- correct behavior, but a reminder that "read-only to the agent" means routine maintenance of that layer requires a human, by design. The pre-commit hook's false positive moving from a theoretical grep finding to an actual blocked commit is also worth carrying forward: the pattern list works, but a slightly smarter match (e.g. requiring a word boundary or a following `=`/`:`) would reduce this friction without losing real detection.
+
 
