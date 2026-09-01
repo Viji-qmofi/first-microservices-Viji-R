@@ -21,7 +21,7 @@ Any new service-layer or controller method containing real logic (not just a pas
 New tests follow the existing pattern rather than inventing a new style: MockMvc for controller tests, Mockito for service-layer tests, matching ProductControllerTest and ProductServiceImplTest.
 
 ## REST method semantics
-The HTTP method on an endpoint must match its actual effect — GET for read-only operations, POST or PUT for anything that mutates state. (Note: placeOrder currently violates this as a known, not-yet-fixed issue — the standard applies to new and changed endpoints going forward.)
+The HTTP method on an endpoint must match its actual effect — GET for read-only operations, POST or PUT for anything that mutates state. 
 
 ## No orphaned code after exception-handling changes
 When restructuring a try/catch, remove any code path that becomes unreachable as a result, in the same change — don't leave dead branches behind for a later cleanup.
