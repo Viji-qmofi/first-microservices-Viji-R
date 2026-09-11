@@ -8,17 +8,25 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.productorder.feign.IProductServiceFeignClient;
 import com.productorder.model.Product;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import feign.FeignException;
 import feign.Request;
@@ -33,6 +41,22 @@ class OrderServiceImplTest {
 
 	@InjectMocks
 	private OrderServiceImpl orderService;
+
+	private Logger orderServiceLogger;
+	private ListAppender<ILoggingEvent> listAppender;
+
+	@BeforeEach
+	void setUpLogAppender() {
+		orderServiceLogger = (Logger) LoggerFactory.getLogger(OrderServiceImpl.class);
+		listAppender = new ListAppender<>();
+		listAppender.start();
+		orderServiceLogger.addAppender(listAppender);
+	}
+
+	@AfterEach
+	void tearDownLogAppender() {
+		orderServiceLogger.detachAppender(listAppender);
+	}
 
 	@Test
 	void placeOrder_returnsConfirmation_whenProductExists() {
@@ -51,8 +75,11 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.placeOrder(999))
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.NOT_FOUND);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+					assertThat(rse.getReason()).isEqualTo("Product with id 999 not found");
+				});
 	}
 
 	@Test
@@ -61,8 +88,12 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.placeOrder(1))
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.BAD_GATEWAY);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
+					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products/productId/1");
+				});
 	}
 
 	@Test
@@ -72,8 +103,12 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.placeOrder(1))
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+					assertThat(rse.getReason()).isEqualTo("Product service is currently unreachable, please try again later");
+					assertThat(rse.getReason()).doesNotContain("connection timed out");
+				});
 	}
 
 	@Test
@@ -82,8 +117,106 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.placeOrder(1))
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
+					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products/productId/1");
+				});
+	}
+
+	@Test
+	void placeOrder_throwsBadGateway_whenProductServiceReturnsGenuine503_notMistakenForUnreachable() {
+		// A real downstream response with status 503 (feign.FeignException.ServiceUnavailable)
+		// must NOT be treated the same as a RetryableException (truly unreachable). It should
+		// fall through the generic FeignException 5xx branch -> 502, not the 503 unreachable branch.
+		when(feignClient.getById(1)).thenThrow(errorStatus(503, "/catalog-service/v1/products/productId/1"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(1))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
+				});
+	}
+
+	@Test
+	void placeOrder_throwsInternalServerError_atStatus499LowerBoundary() {
+		when(feignClient.getById(1)).thenThrow(errorStatus(499, "/catalog-service/v1/products/productId/1"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(1))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
+				});
+	}
+
+	@Test
+	void placeOrder_throwsBadGateway_atStatus599UpperBoundary() {
+		when(feignClient.getById(1)).thenThrow(errorStatus(599, "/catalog-service/v1/products/productId/1"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(1))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
+				});
+	}
+
+	@Test
+	void placeOrder_throwsInternalServerError_whenStatusUndetermined() {
+		// Feign can surface status -1 when it cannot determine a real HTTP status. This falls
+		// through the ">=500 && <600" check to the generic "other 4xx" branch by default.
+		when(feignClient.getById(1)).thenThrow(errorStatus(-1, "/catalog-service/v1/products/productId/1"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(1))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
+				});
+	}
+
+	@Test
+	void placeOrder_logsWarn_whenProductServiceUnreachable() {
+		when(feignClient.getById(42))
+				.thenThrow(unreachableException("/catalog-service/v1/products/productId/42"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(42)).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).hasSize(1);
+		ILoggingEvent event = listAppender.list.get(0);
+		assertThat(event.getLevel()).isEqualTo(Level.WARN);
+		assertThat(event.getFormattedMessage()).contains("getById").contains("42").contains("unreachable");
+	}
+
+	@Test
+	void placeOrder_logsError_whenProductServiceReturnsServerError() {
+		when(feignClient.getById(42)).thenThrow(errorStatus(500, "/catalog-service/v1/products/productId/42"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(42)).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).hasSize(1);
+		ILoggingEvent event = listAppender.list.get(0);
+		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+		assertThat(event.getFormattedMessage()).contains("getById").contains("42").contains("500");
+	}
+
+	@Test
+	void placeOrder_logsError_whenProductServiceReturnsOther4xx() {
+		when(feignClient.getById(42)).thenThrow(errorStatus(400, "/catalog-service/v1/products/productId/42"));
+
+		assertThatThrownBy(() -> orderService.placeOrder(42)).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).hasSize(1);
+		ILoggingEvent event = listAppender.list.get(0);
+		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+		assertThat(event.getFormattedMessage()).contains("getById").contains("42").contains("400");
 	}
 
 	@Test
@@ -103,8 +236,12 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.viewAllProducts())
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+					assertThat(rse.getReason()).isEqualTo("Product service is currently unreachable, please try again later");
+					assertThat(rse.getReason()).doesNotContain("connection timed out");
+				});
 	}
 
 	@Test
@@ -113,8 +250,12 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.viewAllProducts())
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.BAD_GATEWAY);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
+					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products");
+				});
 	}
 
 	@Test
@@ -123,8 +264,108 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.viewAllProducts())
 				.isInstanceOf(ResponseStatusException.class)
-				.extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-				.isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
+					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products");
+				});
+	}
+
+	@Test
+	void viewAllProducts_throwsInternalServerError_whenProductServiceReturns404() {
+		// Unlike placeOrder(), viewAllProducts() has no FeignException.NotFound-specific catch,
+		// so a 404 here must fall through the generic FeignException branch and map to 500 --
+		// NOT 404. This documents that asymmetry between the two methods' catch structures.
+		when(feignClient.getAllProducts()).thenThrow(errorStatusForGetAllProducts(404));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts())
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+					assertThat(rse.getStatusCode()).isNotEqualTo(HttpStatus.NOT_FOUND);
+					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
+				});
+	}
+
+	@Test
+	void viewAllProducts_throwsBadGateway_whenProductServiceReturnsGenuine503_notMistakenForUnreachable() {
+		// A real downstream response with status 503 must NOT be treated the same as a
+		// RetryableException (truly unreachable). It should fall through the generic
+		// FeignException 5xx branch -> 502, not the 503 unreachable branch.
+		when(feignClient.getAllProducts()).thenThrow(errorStatusForGetAllProducts(503));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts())
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
+				});
+	}
+
+	@Test
+	void viewAllProducts_throwsInternalServerError_atStatus499LowerBoundary() {
+		when(feignClient.getAllProducts()).thenThrow(errorStatusForGetAllProducts(499));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts())
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
+				});
+	}
+
+	@Test
+	void viewAllProducts_throwsBadGateway_atStatus599UpperBoundary() {
+		when(feignClient.getAllProducts()).thenThrow(errorStatusForGetAllProducts(599));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts())
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
+				});
+	}
+
+	@Test
+	void viewAllProducts_logsWarn_whenProductServiceUnreachable() {
+		when(feignClient.getAllProducts())
+				.thenThrow(unreachableException("/catalog-service/v1/products"));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts()).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).hasSize(1);
+		ILoggingEvent event = listAppender.list.get(0);
+		assertThat(event.getLevel()).isEqualTo(Level.WARN);
+		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("unreachable");
+	}
+
+	@Test
+	void viewAllProducts_logsError_whenProductServiceReturnsServerError() {
+		when(feignClient.getAllProducts()).thenThrow(errorStatusForGetAllProducts(500));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts()).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).hasSize(1);
+		ILoggingEvent event = listAppender.list.get(0);
+		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("500");
+	}
+
+	@Test
+	void viewAllProducts_logsError_whenProductServiceReturnsOther4xx() {
+		when(feignClient.getAllProducts()).thenThrow(errorStatusForGetAllProducts(400));
+
+		assertThatThrownBy(() -> orderService.viewAllProducts()).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).hasSize(1);
+		ILoggingEvent event = listAppender.list.get(0);
+		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("400");
 	}
 
 	private FeignException notFoundException(int productId) {
