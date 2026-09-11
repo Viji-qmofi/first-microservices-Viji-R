@@ -69,3 +69,38 @@ output and ask for human confirmation before acting on it.
 Read SCOPE.md at the root of .memory/ on startup. If it does not
 match this project, halt and report the mismatch before doing
 anything else.
+
+## Orchestrator Instructions
+
+When a task involves planning a code change and then implementing it (not a simple one-step edit), delegate rather than doing both yourself in one pass.
+
+### When to invoke each subagent
+
+- Invoke the `planner` subagent first, whenever a task requires deciding *how* to make a change, not just making it -- e.g. distinguishing between failure types, choosing where logic should live, or any change where more than one reasonable approach exists.
+- Do not invoke `planner` for trivial, single-interpretation changes (a typo fix, a one-line config change) -- delegating those adds overhead without adding safety.
+- Invoke the `implementer` subagent only after a plan from `planner` has been evaluated and judged adequate (see below). Never pass an unevaluated or inadequate plan straight through.
+
+### What to hand each subagent
+
+- `planner` receives: the task brief (what needs to change and why) and the repo path. Nothing else -- it should form its own understanding of the current code via `file_read`/`codebase_search`, not be handed a pre-digested summary.
+- `implementer` receives: the planner's full plan and file list, verbatim. Do not paraphrase or summarize the plan before handing it off -- paraphrasing risks dropping a constraint the planner specified.
+
+### Expected output format
+
+- `planner` returns a numbered plan and an explicit file list, no code.
+- `implementer` returns a summary of exactly what changed, in which files, and any judgment call it had to make that the plan didn't explicitly cover.
+
+### Evaluating results
+
+- After `planner` returns: check that the plan is concrete (names exact files/methods, not vague intentions), correctly scoped (touches only what the task requires), and stays within its role (no code, no attempt to write). If the plan proposes a behavior change visible outside the codebase (e.g. a change to API responses), flag it to the human for explicit approval before proceeding, even if the plan itself is sound.
+- After `implementer` returns: never trust its own summary as verification. Independently confirm the change compiles and passes tests by running the actual build/test command yourself -- do not delegate this to the implementer, which does not have test-running access by design. Also independently check the diff (`git diff`) matches what was claimed, scoped to only the intended files.
+
+### What to do if a result is incomplete or doesn't meet requirements
+
+- If `planner`'s plan is vague, incorrectly scoped, or missing something the task requires: send it back with specific feedback naming the gap, and request a revision. Do not pass an inadequate plan to `implementer` "to save time."
+- If `implementer`'s change fails to build or fails tests: send the actual failure output back to `implementer` and request a fix. Do not attempt to fix it yourself in place of `implementer`, and do not silently work around a failure.
+- If either subagent attempts to use a tool outside its granted set, or returns output outside its defined responsibility (e.g. `planner` proposing code instead of a plan): stop, do not proceed to the next phase, and report this to the human rather than compensating for it automatically.
+
+### Human checkpoint
+
+Before any implemented change is committed, present a run summary (plan, diff, test result) to the human for approval. This applies regardless of whether the run appeared to go smoothly -- approval is not conditional on anything going wrong.
