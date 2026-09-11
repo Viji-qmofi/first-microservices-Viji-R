@@ -11,13 +11,23 @@ RUN apt-get update && apt-get install -y \
     procps \
     nodejs \
     npm \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# Python deps for the course MCP server (mcp/coursetools_server.py) -- only what
+# that script actually imports, not the full Module 3.2 requirements.txt list.
+RUN pip3 install --no-cache-dir --break-system-packages fastmcp "mcp<2"
 
 # Install Claude Code
 RUN npm install -g @anthropic-ai/claude-code
 
 # Install OpenCode
 RUN npm install -g opencode-ai
+
+# Git identity for commits made inside the container
+RUN git config --global user.name "viji-qmofi" && \
+    git config --global user.email "vijiramu@gmail.com"
 
 # Claude Code configuration: default settings + status line
 RUN mkdir -p /root/.claude
@@ -38,7 +48,3 @@ RUN echo 'export PS1="ai-course:\\w# "' >> /root/.bashrc && \
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["/bin/bash"]
-
-# Git identity for commits made inside the container
-RUN git config --global user.name "viji-qmofi" && \
-    git config --global user.email "vijiramu@gmail.com"
