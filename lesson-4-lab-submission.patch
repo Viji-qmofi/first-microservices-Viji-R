@@ -1,0 +1,114 @@
+diff --git a/.memory/knowledge/coding-standards.md b/.memory/knowledge/coding-standards.md
+index 0d0c01a..521a95e 100644
+--- a/.memory/knowledge/coding-standards.md
++++ b/.memory/knowledge/coding-standards.md
+@@ -21,7 +21,7 @@ Any new service-layer or controller method containing real logic (not just a pas
+ New tests follow the existing pattern rather than inventing a new style: MockMvc for controller tests, Mockito for service-layer tests, matching ProductControllerTest and ProductServiceImplTest.
+ 
+ ## REST method semantics
+-The HTTP method on an endpoint must match its actual effect — GET for read-only operations, POST or PUT for anything that mutates state. (Note: placeOrder currently violates this as a known, not-yet-fixed issue — the standard applies to new and changed endpoints going forward.)
++The HTTP method on an endpoint must match its actual effect — GET for read-only operations, POST or PUT for anything that mutates state. 
+ 
+ ## No orphaned code after exception-handling changes
+ When restructuring a try/catch, remove any code path that becomes unreachable as a result, in the same change — don't leave dead branches behind for a later cleanup.
+diff --git a/.memory/project/MEMORY_INDEX.md b/.memory/project/MEMORY_INDEX.md
+index 7bdf5b5..e32a5e8 100644
+--- a/.memory/project/MEMORY_INDEX.md
++++ b/.memory/project/MEMORY_INDEX.md
+@@ -1,11 +1,12 @@
+ # Project Memory Index
+ 
+-Last updated: 2026-08-14
++Last updated: 2026-09-01
+ 
+ ## Active entries
+ 
+ - decisions/decision-001.md — Feign call failures converted to ResponseStatusException with appropriate HTTP status (503/404). Review by: [90 days from decision-001's date].
+ - decisions/decision-002.md — API connection approach using service account; API key referenced via ANTHROPIC_API_KEY env var only, never written to memory/knowledge/code. Recorded 2026-08-26. Review by 2026-11-24.
++- decisions/decision-003.md — placeOrder endpoint changed from @GetMapping to @PostMapping to fix REST method semantics violation; breaking change for external GET callers bypassing the gateway. Recorded 2026-09-01. Review by 2026-12-01.
+ 
+ ## Archived entries
+ 
+diff --git a/.memory/project/decisions/decision-001.md b/.memory/project/decisions/decision-001.md
+index 1b65dc8..33cd510 100644
+--- a/.memory/project/decisions/decision-001.md
++++ b/.memory/project/decisions/decision-001.md
+@@ -6,8 +6,10 @@
+ 
+ **Decision:** Feign call failures in OrderServiceImpl are converted to a ResponseStatusException with an appropriate HTTP status (503 for unreachable/general failures, 404 for confirmed not-found), rather than left to propagate as unhandled exceptions or returned as a raw, manually-constructed error body.
+ 
+-**Rationale:** viewAllProducts() and placeOrder() originally handled the same failure category two different ways -- viewAllProducts() threw ResponseStatusException, while placeOrder() manually built a ResponseEntity<String> with matching status codes but a different mechanism. This inconsistency was flagged by spring-boot-reviewer and confirmed during a Task-Resumption verification check, which caught the mismatch by reading the actual code rather than trusting the existing (inaccurate) record of this decision. placeOrder() was updated to match viewAllProducts()'s mechanism, so both methods now handle Feign failures identically.
++**Rationale:** viewAllProducts() and placeOrder() originally handled the same failure category two different ways -- viewAllProducts() threw ResponseStatusException, while placeOrder() manually built a ResponseEntity<String> with matching status codes but a different mechanism. This inconsistency was flagged by spring-boot-reviewer and confirmed during a task resumption verification check, which caught the mismatch by reading the actual code rather than trusting the existing (inaccurate) record of this decision. placeOrder() was updated to match viewAllProducts()'s mechanism, so both methods now handle Feign failures identically.
+ 
+ **Alternatives rejected:** Leaving the two methods on different mechanisms with matching status codes was rejected once identified, since it meant the "consistent" convention wasn't actually consistent -- only the client-visible outcome was, not the implementation a future change would need to follow.
+ 
+ **Follow-up (2026-08-14):** A code-vs-record check found that the original `placeOrder()` update left an orphaned dead branch behind: a post-call `if(product!=null)/else throw NOT_FOUND` check that became unreachable once `FeignException.NotFound` was caught and rethrown above it -- a violation of the "No orphaned code after exception-handling changes" standard in coding-standards.md. Fixed by removing the dead branch, and added `OrderServiceImplTest` (success, not-found, and service-unavailable cases for `placeOrder()`) since the method previously had no dedicated unit test. Note: these changes were written and could not be compiled/run in this session -- the environment is offline with no cached Maven dependencies, so `./mvnw test` fails on parent-POM resolution before it can even reach the new test. Verify with a build before merge.
++
++**Follow-up (2026-09-01):** The "offline, no cached parent POM" blocker above was environment-specific to the 2026-08-14 session, not a structural project issue. Verified in this session: network access to `repo.maven.apache.org` is available (DNS resolves, HTTP 200), no offline mode is configured anywhere in the project (no `.mvn/maven.config`, no `settings.xml`, no proxy env vars) -- the earlier failure was local to that session's sandbox. A real `./mvnw test` (no `-o` flag) downloaded `spring-boot-starter-parent:4.0.5` and all dependencies, then passed: `BUILD SUCCESS`, 4 tests run, 0 failures, 0 errors, including all 3 `OrderServiceImplTest` cases (success, not-found, service-unavailable) referenced above. The Eureka `Connection refused` warnings during the run are expected noise (no discovery server running in this sandbox) and do not affect build/test outcome. Status: build is unblocked; no code changes were needed.
+diff --git a/.memory/project/decisions/decision-003.md b/.memory/project/decisions/decision-003.md
+new file mode 100644
+index 0000000..faddd19
+--- /dev/null
++++ b/.memory/project/decisions/decision-003.md
+@@ -0,0 +1,15 @@
++# Decision 003 - placeOrder Endpoint Method Corrected to POST
++
++**Date:** 2026-09-01
++
++**Review by:** 2026-12-01
++
++**Status:** Active
++
++**Decision:** `OrderController.placeOrder` is now mapped with `@PostMapping("/orders/place-order/{productId}")` instead of `@GetMapping`, so the HTTP method matches its mutating effect (it creates an order).
++
++**Rationale:** This was a known, standing violation of the "REST method semantics" standard in coding-standards.md, which requires GET for read-only operations and POST/PUT for anything that mutates state. `placeOrder` mutates state (creates an order) but was mapped as GET. Fixed to bring the endpoint into compliance. No existing test depended on the GET mapping — the only test covering `placeOrder` (`OrderServiceImplTest`) exercises the service layer directly via Mockito, not the HTTP layer, and the API gateway route to order-service uses a generic `Path` predicate with no `Method` restriction — so no test changes were required. Verified with `./mvnw test`: `BUILD SUCCESS`, 4 tests run, 0 failures, 0 errors.
++
++**Alternatives rejected:** Leaving the mapping as GET was rejected since it was already flagged as a known violation of an established standard, with no justification for the exception.
++
++**Breaking-change consequence:** Any external caller hitting the order-service directly on `/order-service/v1/orders/place-order/{productId}` (bypassing the API gateway) with a GET request will now receive a 405 Method Not Allowed and must switch to POST. Callers going through the API gateway route (`/purchase/place-order/{id}`) are unaffected at the routing-config level, since that route has no method predicate — but any such caller must still send POST for the request to succeed against order-service.
+diff --git a/module2_doc/iteration-log.md b/module2_doc/iteration-log.md
+index d8cd9d8..d6eb569 100644
+--- a/module2_doc/iteration-log.md
++++ b/module2_doc/iteration-log.md
+@@ -287,4 +287,41 @@ Pass/Fail: **Pass.** The soft guard (write policy) already prevented the failure
+ 
+ Observations: This is the strongest evidence in the course so far that memory policies genuinely shape behavior rather than being decorative -- the failure had to be deliberately forced past an existing refusal to even reproduce it. The naive grep pattern's false positive (a coincidental substring match) is a real, minor limitation worth knowing but not worth fixing for this exercise's scope.
+ 
++## Run 008 -- 2026-09-01 -- Module 2 Lab, Track 1 (Real Work + Memory Strengthening)
++
++Agent: plain Claude Code sessions (no dedicated agent definition — Track 1 specifically uses built-in capabilities rather than `spring-boot-reviewer`).
++
++Starting state: tagged `lesson-4-lab-start` before any lab work began, per the lab's setup requirement.
++
++Task: continue real, previously-identified project work rather than a synthetic exercise — resolve the Maven build-verification blocker recorded in `decision-001.md`, fix the standing `@GetMapping`/`@PostMapping` violation on `placeOrder`, and capture whatever a future session couldn't reconstruct from the repo alone.
++
++### Real work completed
++
++1. **Maven build investigation.** The "offline, no cached parent POM" blocker recorded in `decision-001.md` (from the 2026-08-14 session) turned out to be specific to that session's sandbox, not a lasting project constraint. A real `./mvnw test` (no `-o` flag) in this session resolved dependencies from `repo.maven.apache.org` and passed cleanly: `BUILD SUCCESS`, 4/4 tests, including all three `OrderServiceImplTest` cases that had never actually been run before. `decision-001.md` was updated with a dated follow-up recording this, explicitly framed as "environment-specific to that session, not a structural project issue" -- an important distinction, since the original wording read as a persistent constraint rather than a one-time condition.
++2. **`@GetMapping` -> `@PostMapping` fix.** `OrderController.placeOrder` was mapped `@GetMapping` despite mutating state (creating an order), a standing violation of `coding-standards.md`'s REST method semantics rule. Fixed to `@PostMapping`. No test updates needed (the only test on `placeOrder` exercises the service layer via Mockito, not the HTTP mapping). Verified with a real, passing `./mvnw test` run -- nothing broke.
++3. **Breaking-change consequence identified and recorded, not just the code change.** Changing the HTTP verb means any external caller hitting `order-service` directly (bypassing the API gateway) with GET now gets `405 Method Not Allowed`. This is exactly the kind of context a future session couldn't reconstruct from the diff alone -- captured explicitly in a new `decision-003.md`, not left implicit.
++
++### Memory updates
++
++- `decision-001.md` -- build-status follow-up added (see above).
++- `decision-003.md` -- new entry for the HTTP-method fix, including the breaking-change consequence for direct callers.
++- `MEMORY_INDEX.md` -- updated for `decision-003.md`.
++- `coding-standards.md` -- the stale "`placeOrder` known, not-yet-fixed issue" caveat removed from the REST method semantics standard, since it's now fixed. This edit had to be made by hand, outside Claude Code, on the host -- `.memory/knowledge/` is genuinely read-only to the container (`:ro` mount), and the agent correctly declined to write to it and explained why rather than attempting a workaround.
++
++### Notable incident -- pre-commit hook false positive, for real this time
++
++The commit was initially blocked by the credential-scanning pre-commit hook (Exercise 2.4) on a false-positive match: the literal substring `sk-` inside "Task-Resumption" in `decision-001.md`'s pre-existing rationale text (the same false positive identified during Run 007's grep testing, but this time it actually blocked a real commit rather than just showing up in a manual `grep`). Resolved by rewording to "task resumption" -- meaning-preserving, flagged explicitly as an incidental change outside the scope of what was asked. This is real evidence the hook has a genuine precision cost, not just a theoretical one noted in a log.
++
++Commit: `8e3dac8` -- "fix: unblock Maven build verification, fix placeOrder HTTP method to POST, record decision-003" (5 files: `OrderController.java`, `decision-001.md`, `decision-003.md`, `MEMORY_INDEX.md`, `coding-standards.md`).
++
++### Fresh-session verification
++
++New container, fresh `claude` session (no `--continue`/`--resume`), asked for a status summary on the build, `placeOrder`'s HTTP method, and any outstanding REST-semantics violations, explicitly instructed to base the answer only on current repo/memory state.
++
++Result: correct on all three counts -- reported the build as verified working (not hedged, not still describing it as offline), correctly identified `placeOrder` as POST with the breaking-change consequence, and correctly reported no outstanding REST-semantics violations. Went beyond the minimum: independently re-scanned the other controller/Feign endpoints for any *other* GET/POST mismatch (found none), without being asked to.
++
++Pass/Fail: **Pass.** Real project work completed, correctly captured in memory with enough context (not just "what changed" but "why it was previously blocked" and "what breaks for existing callers"), and a fresh session correctly reconstructed all of it independently.
++
++Observations: This lab is the first time the memory system's read-only boundary blocked a *legitimate* edit request (the `coding-standards.md` caveat removal) rather than a deliberately malicious test -- correct behavior, but a reminder that "read-only to the agent" means routine maintenance of that layer requires a human, by design. The pre-commit hook's false positive moving from a theoretical grep finding to an actual blocked commit is also worth carrying forward: the pattern list works, but a slightly smarter match (e.g. requiring a word boundary or a following `=`/`:`) would reduce this friction without losing real detection.
++
+ 
