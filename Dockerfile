@@ -2,7 +2,8 @@ FROM maven:3.9-eclipse-temurin-21
 
 WORKDIR /workspace
 
-RUN apt-get update && apt-get install -y \
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get update && apt-get install -y \
     curl \
     git \
     bash \
@@ -10,14 +11,13 @@ RUN apt-get update && apt-get install -y \
     nano \
     procps \
     nodejs \
-    npm \
     python3 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps for the course MCP server (mcp/coursetools_server.py) -- only what
 # that script actually imports, not the full Module 3.2 requirements.txt list.
-RUN pip3 install --no-cache-dir --break-system-packages fastmcp "mcp<2"
+RUN pip3 install --no-cache-dir --break-system-packages fastmcp "mcp<2" starlette uvicorn sqlite-vec sentence-transformers
 
 # Install Claude Code
 RUN npm install -g @anthropic-ai/claude-code
