@@ -7,6 +7,14 @@
         "mcp/coursetools_server.py"
       ],
       "env": {}
+    },
+    "retrieval": {
+      "type": "http",
+      "url": "http://localhost:8002/mcp"
+    },
+    "storage": {
+      "type": "http",
+      "url": "http://localhost:8001/mcp"
     }
   }
 }
