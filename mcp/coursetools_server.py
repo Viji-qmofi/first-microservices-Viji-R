@@ -64,6 +64,13 @@ def file_read(role: str, path: str) -> str:
     """Read a UTF-8 text file from the project root."""
     authorize("file_read", role)
     target = safe_path(path)
+    memory_root = (ROOT / ".memory").resolve()
+    if target == memory_root or memory_root in target.parents:
+        raise PermissionError(
+            f"file_read cannot access '{path}': it falls under .memory/. Memory "
+            "content must go through the storage or retrieval MCP servers, not the "
+            "general file tool."
+        )
     if not target.exists() or not target.is_file():
         raise FileNotFoundError(path)
     return target.read_text(encoding="utf-8")
@@ -74,6 +81,13 @@ def file_write(role: str, path: str, content: str) -> str:
     """Write a UTF-8 text file under the project root."""
     authorize("file_write", role)
     target = safe_path(path)
+    memory_root = (ROOT / ".memory").resolve()
+    if target == memory_root or memory_root in target.parents:
+        raise PermissionError(
+            f"file_write cannot access '{path}': it falls under .memory/. Memory "
+            "content must go through the storage or retrieval MCP servers, not the "
+            "general file tool."
+        )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return f"Wrote {path} ({len(content)} bytes)."
@@ -84,8 +98,15 @@ def codebase_search(role: str, query: str, root: str = ".", max_results: int = 2
     """Search text files under the project root for a query string."""
     authorize("codebase_search", role)
     search_root = safe_path(root)
+    memory_root = (ROOT / ".memory").resolve()
+    if search_root == memory_root or memory_root in search_root.parents:
+        raise PermissionError(
+            f"codebase_search cannot access '{root}': it falls under .memory/. Memory "
+            "content must go through the storage or retrieval MCP servers, not the "
+            "general file tool."
+        )
     results: list[dict[str, Any]] = []
-    ignored_dirs = {".git", "node_modules", ".venv", "__pycache__"}
+    ignored_dirs = {".git", "node_modules", ".venv", "__pycache__", ".memory"}
 
     for path in search_root.rglob("*"):
         if len(results) >= max_results:
