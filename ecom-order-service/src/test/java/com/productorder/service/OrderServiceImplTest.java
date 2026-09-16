@@ -2,6 +2,8 @@ package com.productorder.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -70,6 +72,21 @@ class OrderServiceImplTest {
 	}
 
 	@Test
+	void placeOrder_succeedsAfterRetries_whenProductServiceUnreachableTwiceThenSucceeds() {
+		Product product = new Product("Mobile", 1, "Samsung", "Electronics");
+		when(feignClient.getById(1))
+				.thenThrow(unreachableException("/catalog-service/v1/products/productId/1"))
+				.thenThrow(unreachableException("/catalog-service/v1/products/productId/1"))
+				.thenReturn(product);
+
+		ResponseEntity<String> result = orderService.placeOrder(1);
+
+		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(result.getBody()).isEqualTo("Order placed successfully for Mobile");
+		verify(feignClient, times(3)).getById(1);
+	}
+
+	@Test
 	void placeOrder_throwsNotFound_whenProductDoesNotExist() {
 		when(feignClient.getById(999)).thenThrow(notFoundException(999));
 
@@ -80,6 +97,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 					assertThat(rse.getReason()).isEqualTo("Product with id 999 not found");
 				});
+
+		verify(feignClient, times(1)).getById(999);
 	}
 
 	@Test
@@ -94,6 +113,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
 					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products/productId/1");
 				});
+
+		verify(feignClient, times(1)).getById(1);
 	}
 
 	@Test
@@ -109,6 +130,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getReason()).isEqualTo("Product service is currently unreachable, please try again later");
 					assertThat(rse.getReason()).doesNotContain("connection timed out");
 				});
+
+		verify(feignClient, times(3)).getById(1);
 	}
 
 	@Test
@@ -123,6 +146,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
 					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products/productId/1");
 				});
+
+		verify(feignClient, times(1)).getById(1);
 	}
 
 	@Test
@@ -139,6 +164,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
 					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
 				});
+
+		verify(feignClient, times(1)).getById(1);
 	}
 
 	@Test
@@ -152,6 +179,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
 				});
+
+		verify(feignClient, times(1)).getById(1);
 	}
 
 	@Test
@@ -165,6 +194,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
 					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
 				});
+
+		verify(feignClient, times(1)).getById(1);
 	}
 
 	@Test
@@ -180,6 +211,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
 				});
+
+		verify(feignClient, times(1)).getById(1);
 	}
 
 	@Test
@@ -205,6 +238,8 @@ class OrderServiceImplTest {
 		ILoggingEvent event = listAppender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
 		assertThat(event.getFormattedMessage()).contains("getById").contains("42").contains("500");
+
+		verify(feignClient, times(1)).getById(42);
 	}
 
 	@Test
@@ -217,6 +252,8 @@ class OrderServiceImplTest {
 		ILoggingEvent event = listAppender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
 		assertThat(event.getFormattedMessage()).contains("getById").contains("42").contains("400");
+
+		verify(feignClient, times(1)).getById(42);
 	}
 
 	@Test
@@ -227,6 +264,20 @@ class OrderServiceImplTest {
 		List<Product> result = orderService.viewAllProducts();
 
 		assertThat(result).isEqualTo(products);
+	}
+
+	@Test
+	void viewAllProducts_succeedsAfterRetries_whenProductServiceUnreachableTwiceThenSucceeds() {
+		List<Product> products = List.of(new Product("Mobile", 1, "Samsung", "Electronics"));
+		when(feignClient.getAllProducts())
+				.thenThrow(unreachableException("/catalog-service/v1/products"))
+				.thenThrow(unreachableException("/catalog-service/v1/products"))
+				.thenReturn(products);
+
+		List<Product> result = orderService.viewAllProducts();
+
+		assertThat(result).isEqualTo(products);
+		verify(feignClient, times(3)).getAllProducts();
 	}
 
 	@Test
@@ -242,6 +293,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getReason()).isEqualTo("Product service is currently unreachable, please try again later");
 					assertThat(rse.getReason()).doesNotContain("connection timed out");
 				});
+
+		verify(feignClient, times(3)).getAllProducts();
 	}
 
 	@Test
@@ -256,6 +309,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
 					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products");
 				});
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -270,6 +325,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
 					assertThat(rse.getReason()).doesNotContain("/catalog-service/v1/products");
 				});
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -287,6 +344,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isNotEqualTo(HttpStatus.NOT_FOUND);
 					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
 				});
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -303,6 +362,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
 					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
 				});
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -316,6 +377,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 					assertThat(rse.getReason()).isEqualTo("Unable to process request due to an internal error");
 				});
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -329,6 +392,8 @@ class OrderServiceImplTest {
 					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
 					assertThat(rse.getReason()).isEqualTo("Product service returned an error, please try again later");
 				});
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -354,6 +419,8 @@ class OrderServiceImplTest {
 		ILoggingEvent event = listAppender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
 		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("500");
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	@Test
@@ -366,6 +433,8 @@ class OrderServiceImplTest {
 		ILoggingEvent event = listAppender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.ERROR);
 		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("400");
+
+		verify(feignClient, times(1)).getAllProducts();
 	}
 
 	private FeignException notFoundException(int productId) {

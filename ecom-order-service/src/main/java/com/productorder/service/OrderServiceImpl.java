@@ -1,6 +1,7 @@
 package com.productorder.service;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,8 +22,42 @@ public class OrderServiceImpl implements IOrderService{
 
 	private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
 
+	// 1 initial call + 2 retries; human-approved exact value, not to be changed.
+	private static final int MAX_ATTEMPTS = 3;
+	// Fixed delay between attempts, no exponential growth or jitter; human-approved exact value.
+	private static final long RETRY_BACKOFF_MS = 200;
+
 	@Autowired
 	private IProductServiceFeignClient feignClient;
+
+	// Manual bounded retry loop for feign.RetryableException (true "service unreachable" case: no HTTP
+	// response received at all). Implemented here rather than via a Feign Retryer bean/config because the
+	// test suite mocks IProductServiceFeignClient directly with Mockito, which bypasses Feign's own
+	// SynchronousMethodHandler/Retryer machinery entirely -- a Retryer-SPI-based fix would never be
+	// exercised by those tests. No logging occurs inside this loop: the single WARN log for an exhausted
+	// retry sequence must continue to fire exactly once, from the caller's existing
+	// catch (RetryableException ex) block, only after retries are exhausted. FeignException.NotFound and
+	// general FeignException are not RetryableException subtypes, so they propagate out on the very first
+	// attempt, unretried.
+	private <T> T callWithRetry(Supplier<T> feignCall) {
+		RetryableException lastException = null;
+		for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+			try {
+				return feignCall.get();
+			} catch (RetryableException ex) {
+				lastException = ex;
+				if (attempt < MAX_ATTEMPTS) {
+					try {
+						Thread.sleep(RETRY_BACKOFF_MS);
+					} catch (InterruptedException interruptedEx) {
+						Thread.currentThread().interrupt();
+						break;
+					}
+				}
+			}
+		}
+		throw lastException;
+	}
 
 	@Override
 	public ResponseEntity<String> placeOrder(int productId) {
@@ -30,7 +65,7 @@ public class OrderServiceImpl implements IOrderService{
 		//	else cancel the order
 		Product product;
 		try {
-			product = feignClient.getById(productId);
+			product = callWithRetry(() -> feignClient.getById(productId));
 		} catch (FeignException.NotFound ex) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND,
 					"Product with id "+productId+" not found");
@@ -68,7 +103,7 @@ public class OrderServiceImpl implements IOrderService{
 	@Override
 	public List<Product> viewAllProducts() {
 		try {
-			return feignClient.getAllProducts();
+			return callWithRetry(() -> feignClient.getAllProducts());
 		// Same RetryableException-before-FeignException distinction as placeOrder() above; see the comments
 		// there for the full explanation (no NotFound case here since this call returns a list, not a single
 		// resource).
