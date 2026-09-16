@@ -101,6 +101,14 @@ When a task involves planning a code change and then implementing it (not a simp
 - If `implementer`'s change fails to build or fails tests: send the actual failure output back to `implementer` and request a fix. Do not attempt to fix it yourself in place of `implementer`, and do not silently work around a failure.
 - If either subagent attempts to use a tool outside its granted set, or returns output outside its defined responsibility (e.g. `planner` proposing code instead of a plan): stop, do not proceed to the next phase, and report this to the human rather than compensating for it automatically.
 
+### Storage and Retrieval Access
+
+- `planner` retrieves relevant prior lessons (via `mcp__retrieval__retrieve`, `project_id="proj-lessons"`, `classification_ceiling="internal"`) before proposing an approach. Check its plan cites what it found, or explicitly notes nothing relevant existed -- a plan that skips this step should be sent back.
+- `implementer` may record one new lesson learned (via `mcp__storage__write_entry`) when the work surfaces something a future session couldn't reconstruct from the code alone. It has write-only access -- it cannot read, list, or edit existing entries. Not every run needs a new entry; a plan that ends with "recorded a lesson" for a routine, unsurprising change is over-recording, not a sign of thoroughness.
+- The Orchestrator itself retrieves relevant standards or prior lessons while evaluating the Implementer's result, standing in for a dedicated Reviewer role (same pattern as the Orchestrator's own `./mvnw test` run standing in for Tester). This is a policy followed by the top-level session, not a technically enforced boundary the way a subagent's `tools:` restriction is -- worth remembering that distinction rather than treating it as an equivalent guarantee.
+
+**Classification ceiling is self-declared, not server-enforced per role.** `classification_ceiling` is just a parameter any caller passes to `retrieve` -- nothing on the server ties a specific role's identity to a maximum ceiling it's allowed to request. `planner`'s instructions tell it to always pass `"internal"`, but that is a policy the agent is expected to follow, not a technical guarantee the way the storage server's own `write_classifications` check is (which genuinely rejects a `secret`-classified write server-side, regardless of what the caller claims). Do not describe retrieval's classification ceiling as enforced in the same sense as storage's write classification -- they are different strengths of guarantee.
+
 ### Human checkpoint
 
 Before any implemented change is committed, present a run summary (plan, diff, test result) to the human for approval. This applies regardless of whether the run appeared to go smoothly -- approval is not conditional on anything going wrong.
