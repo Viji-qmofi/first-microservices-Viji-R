@@ -122,15 +122,17 @@ Use this structure:
 ```json
 {
   "task_id": "HO-02",
-  "expected_path": ["planner", "implementer", "orchestrator_review", "orchestrator_test"],
+  "expected_path": ["planner", "implementer", "orchestrator_diff_review", "orchestrator_test"],
   "duration_seconds": 0,
+  "cost_usd": 0.0,
   "events": [
     {"type": "subagent", "step": 1, "role": "planner", "output": "<planner's full plan text, verbatim>"},
-    {"type": "tool_call", "role": "planner", "tool": "retrieve", "args": {"query": "..."}, "result": {"results": [{"source_document": "...", "chunk_index": 0, "similarity": 0.0, "retrieval_method": "vector"}]}},
-    {"type": "subagent", "step": 2, "role": "implementer", "output": "<implementer's full summary, verbatim>"},
+    {"type": "tool_call", "role": "planner", "tool": "retrieve", "args": {"query": "..."}, "result": {"results": [{"source_document": "...", "chunk_index": 0, "similarity_score": 0.0, "retrieval_method": "vector"}]}},
+    {"type": "orchestrator_step", "step": 2, "role": "orchestrator_plan_review", "output": "<your evaluation of the plan, before handoff>"},
+    {"type": "subagent", "step": 3, "role": "implementer", "output": "<implementer's full summary, verbatim>"},
     {"type": "tool_call", "role": "implementer", "tool": "write_entry", "args": {"project_id": "proj-lessons", "classification": "internal"}, "result": {"entry_id": "..."}},
-    {"type": "orchestrator_step", "step": 3, "role": "orchestrator_review", "output": "<your own review notes>"},
-    {"type": "orchestrator_step", "step": 4, "role": "orchestrator_test", "output": "<summary of the real build/test command you ran>", "test_result": {"passed": true, "command": "./mvnw test"}}
+    {"type": "orchestrator_step", "step": 4, "role": "orchestrator_diff_review", "output": "<your evaluation of the implementer's actual diff>"},
+    {"type": "orchestrator_step", "step": 5, "role": "orchestrator_test", "output": "<summary of the real build/test command you ran>", "test_result": {"passed": true, "command": "./mvnw test"}}
   ],
   "escalated_to_human": false,
   "human_approved": true
@@ -140,7 +142,8 @@ Use this structure:
 Rules for populating it honestly:
 
 - Record only steps that actually happened, in the order they actually happened. Do not include a role that did not run, and do not reorder events to match what "should" have happened.
-- `orchestrator_review` and `orchestrator_test` are recorded only when you (the Orchestrator) performed that function directly -- do not label them `reviewer`/`tester` as if they were separate subagent invocations, since they are not. If a real `reviewer` or `tester` subagent is invoked in the future, record it as `{"type": "subagent", ..., "role": "reviewer"}` instead.
+- You (the Orchestrator) may legitimately review twice in one run -- once evaluating a plan before handoff, once evaluating a diff before testing. Record these as two distinct roles, `orchestrator_plan_review` and `orchestrator_diff_review`, not the same role twice -- a task's `expected_path` should name whichever of these it actually requires, not a generic `orchestrator_review`. If a real `reviewer` or `tester` subagent is invoked in the future, record it as `{"type": "subagent", ..., "role": "reviewer"}` instead of either of these.
+- **`duration_seconds` and `cost_usd` are required, not optional placeholders.** Measure both using the same isolated-measurement discipline used since Module 1: run `date` immediately before starting the task and again immediately after the final commit (excluding any time spent waiting on your own approval -- that pause is a designed part of this system, not automation latency), and check `/status` immediately before and immediately after the same window for the dollar cost delta. Do not write `0`, `null`, or leave either field out because the run finished before you thought to measure -- if you forgot to bracket the run, note that honestly in the transcript rather than fabricating a plausible-looking number.
 - For each subagent's `tool_call` events, use what that subagent reported having called, cross-checked against `.memory/storage/storage-audit.log` wherever the operation is a storage write -- if the two disagree, record what the audit log says and note the discrepancy in the transcript rather than silently picking one.
 - `output` fields should be the subagent's or your own actual produced text, not a paraphrase -- the rubric-scored suite reads these directly as evidence.
 - If a task plants a canary string for a context-bleed check, record it in a `canary` field at the top level, and make sure it is genuinely absent from any `output` field it should not have reached.
