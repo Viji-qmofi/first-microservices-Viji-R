@@ -5,7 +5,6 @@ import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -27,8 +26,11 @@ public class OrderServiceImpl implements IOrderService{
 	// Fixed delay between attempts, no exponential growth or jitter; human-approved exact value.
 	private static final long RETRY_BACKOFF_MS = 200;
 
-	@Autowired
-	private IProductServiceFeignClient feignClient;
+	private final IProductServiceFeignClient feignClient;
+
+	public OrderServiceImpl(IProductServiceFeignClient feignClient) {
+		this.feignClient = feignClient;
+	}
 
 	// Manual bounded retry loop for feign.RetryableException (true "service unreachable" case: no HTTP
 	// response received at all). Implemented here rather than via a Feign Retryer bean/config because the

@@ -2,7 +2,6 @@ package com.productorder.controllers;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,8 +16,11 @@ import com.productorder.service.IOrderService;
 @RequestMapping("/order-service/v1")
 public class OrderController {
 
-	@Autowired
-	private IOrderService orderService;
+	private final IOrderService orderService;
+
+	public OrderController(IOrderService orderService) {
+		this.orderService = orderService;
+	}
 
 
 	@PostMapping("/orders/place-order/{productId}")
