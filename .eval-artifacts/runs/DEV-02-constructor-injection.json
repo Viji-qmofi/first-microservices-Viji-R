@@ -22,25 +22,50 @@
       "role": "planner",
       "tool": "retrieve",
       "args": {
+        "query": "constructor injection vs field @Autowired dependency injection style",
         "project_id": "proj-lessons",
-        "classification_ceiling": "internal",
-        "query": "not recorded: planner reported two calls but exact query strings were not captured"
+        "classification_ceiling": "internal"
+      },
+      "result": {
+        "results": [
+          {
+            "source_document": "git-worktree-windows-paths.md",
+            "chunk_index": 0,
+            "retrieval_method": "keyword"
+          },
+          {
+            "source_document": "git-worktree-windows-paths.md",
+            "chunk_index": 1,
+            "retrieval_method": "keyword"
+          }
+        ]
+      },
+      "source_note": "Recovered after the fact from the planner subagent's own transcript file (agent a0c8ed6b195f1062a, this task), not reconstructed from its summary. No similarity_score recorded: keyword-fallback results."
+    },
+    {
+      "type": "tool_call",
+      "role": "planner",
+      "tool": "retrieve",
+      "args": {
+        "query": "coding standard dependency injection constructor",
+        "project_id": "proj-lessons",
+        "classification_ceiling": "internal"
       },
       "result": {
         "results": [
           {
             "source_document": "feign-exception-handling-convention.md",
-            "chunk_index": 3
+            "chunk_index": 3,
+            "retrieval_method": "keyword"
           },
           {
-            "source_document": "git-worktree-windows-paths.md"
-          },
-          {
-            "source_document": "chmod-root-bypass.md"
+            "source_document": "chmod-root-bypass.md",
+            "chunk_index": 0,
+            "retrieval_method": "keyword"
           }
-        ],
-        "note": "similarity_score and retrieval_method not captured; chunk_index only known for the first hit. Reconstructed from the planner's report, not from raw tool output."
-      }
+        ]
+      },
+      "source_note": "Recovered after the fact from the planner subagent's own transcript file (agent a0c8ed6b195f1062a, this task), not reconstructed from its summary. No similarity_score recorded: keyword-fallback results."
     },
     {
       "type": "orchestrator_step",
@@ -73,7 +98,7 @@
   ],
   "escalated_to_human": false,
   "human_approved": true,
-  "notes": "human_approved=false: the pre-commit human checkpoint (plan, diff, test result) has been presented but approval has not been given, and nothing has been committed. escalated_to_human=false: the plan proposed no externally visible behavior change and no subagent exceeded its tool grant. Storage audit cross-check: .memory/storage/storage-audit.log has zero entries dated 2026-09-18, consistent with the implementer recording no lesson and the planner performing only reads. Context-boundary procedure from CLAUDE.md was performed at the start of this phase. Human approved the commit with the message 'commit' after the run summary. Before committing, OrderController.java line endings were restored to CRLF (matching the index) so the commit contains only the intended change; the LF working-tree state noted in orchestrator_diff_review was therefore not committed.",
+  "notes": "human_approved=true: the pre-commit checkpoint (plan, diff, test result) was presented and the human approved the commit. (This sentence originally read false, written before approval, and was left stale after the later approval note; corrected.) escalated_to_human=false: the plan proposed no externally visible behavior change and no subagent exceeded its tool grant. Storage audit cross-check: .memory/storage/storage-audit.log has zero entries dated 2026-09-18, consistent with the implementer recording no lesson and the planner performing only reads. Context-boundary procedure from CLAUDE.md was performed at the start of this phase. Human approved the commit with the message 'commit' after the run summary. Before committing, OrderController.java line endings were restored to CRLF (matching the index) so the commit contains only the intended change; the LF working-tree state noted in orchestrator_diff_review was therefore not committed. Correction (post-commit): the original retrieve tool_call entry claimed the planner's exact query strings were not captured and listed 3 results with missing fields. That was wrong: the raw calls were still recoverable from the planner's transcript. It is replaced by two retrieve events with verbatim queries and all 4 results (source_document, chunk_index, retrieval_method=keyword for each). All four hits came from the keyword fallback; the two off-topic lessons matched on loose keywords.",
   "cost_measurement": {
     "value_usd": 1.19,
     "kind": "session_cumulative_upper_bound",

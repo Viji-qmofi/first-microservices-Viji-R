@@ -35,3 +35,20 @@ Both fixes were genuine, targeted at different plausible causes (wording vs. chu
 Classification-ceiling enforcement held correctly -- `agentic-run-cost-tracking.md` (confidential) never appeared in results under an `internal` ceiling, across every variant tried. However, the *quality* of what came back instead is weak: the keyword fallback returned three semantically unrelated documents (git identity, Feign handling, network egress), none actually about cost. Inspecting `fts_query()` in `mcp/retrieval/server.py`, the keyword search OR-joins every token in the query, including ordinary filler words ("what," "are," "the," "for," "this") -- in a small corpus, this matches nearly any document rather than genuinely relevant ones. This is a real precision gap in the fallback mechanism itself, separate from the ceiling-enforcement correctness, which was not in question.
 
 **Follow-up (stopword gap addressed):** `fts_query()` now drops a conservative set of English stopwords (`KEYWORD_STOPWORDS` in `mcp/retrieval/server.py`) before building the OR-joined query. Exact-token behavior for identifiers (e.g. `OrderServiceImpl`, `-32000`, snake_case names) is unchanged, and the classification-ceiling and project filtering in `keyword_search()` were not touched. A query made up entirely of stopwords now yields no keyword matches. This change has not been re-measured here; the table and findings above record the results measured before the change.
+
+## Known gap — a single shared content word can match an unrelated document (separate from Q5)
+
+This is a distinct finding from the Q5 filler-word issue above, observed *after* the stopword fix (`266a2fd`) was in place. The Q5 fix drops ordinary English filler words; it does not, and cannot, address the deeper problem that `fts_query()` OR-joins every remaining token, so any one shared content word is enough to make an entirely unrelated document a match.
+
+**Observed instance (planner run for the constructor-injection task, keyword fallback, `proj-lessons`, ceiling `internal`):**
+
+- Query `"constructor injection vs field @Autowired dependency injection style"` returned `git-worktree-windows-paths.md` (chunks 0 and 1).
+- Query `"coding standard dependency injection constructor"` returned `feign-exception-handling-convention.md` (chunk 3) and `chmod-root-bypass.md` (chunk 0).
+
+All four hits came from the keyword fallback. `git-worktree-windows-paths.md` and `chmod-root-bypass.md` have nothing to do with dependency injection; the planner itself judged them irrelevant. The Feign document was only a pointer to the coding-standards file, not the standard itself. Which specific shared token caused each unrelated match was not isolated here. That is inferred from how the OR-join works, not measured.
+
+**Why the stopword fix does not cover it:** the tokens involved are content words, not filler, so filtering them out would also remove the words a real query depends on. The cause is the OR-based matching itself, together with the fallback returning results with no relevance floor or ranking signal comparable to the vector path's similarity threshold.
+
+**Impact:** a caller relying on the fallback can receive plausible-looking but irrelevant lessons. It currently falls to the caller to judge relevance; the ceiling and project filtering are unaffected.
+
+**Disposition:** documented as a known, separate gap. The underlying retrieval logic has intentionally not been changed as part of this note, and no fix has been designed or measured.
