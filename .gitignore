@@ -1,3 +1,4 @@
 .claude/settings.local.json 
 google_cred.json
 .memory/storage/
+.eval-artifacts/
