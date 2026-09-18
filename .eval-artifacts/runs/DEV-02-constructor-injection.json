@@ -8,8 +8,8 @@
     "orchestrator_test"
   ],
   "duration_seconds": 188,
-  "cost_usd": null,
-  "measurement_note": "duration_seconds is PROVISIONAL: measured from a `date` run at 21:14:52 UTC (immediately before the task message) to `date` at 21:18:00 UTC (after the test run). It ends BEFORE the commit because commit approval is still pending; update after the final commit if desired. No human-wait time occurred inside this window. cost_usd is null: the orchestrator cannot run /status, so no before/after dollar delta was captured. Not fabricated.",
+  "cost_usd": 1.19,
+  "measurement_note": "duration_seconds=188: `date` bracket 21:14:52 UTC (start) to 21:18:00 UTC (tests finished, human checkpoint summary presented). Excludes the human approval wait and the commit step: approval came between ~21:18:00 and commit 9ebb640 at 21:19:17 UTC; the exact time of the human's reply was not recorded (start-to-commit total was 265s). cost_usd=1.19 is a session-cumulative UPPER BOUND, not an isolated cost; see cost_measurement.",
   "events": [
     {
       "type": "subagent",
@@ -73,5 +73,11 @@
   ],
   "escalated_to_human": false,
   "human_approved": true,
-  "notes": "human_approved=false: the pre-commit human checkpoint (plan, diff, test result) has been presented but approval has not been given, and nothing has been committed. escalated_to_human=false: the plan proposed no externally visible behavior change and no subagent exceeded its tool grant. Storage audit cross-check: .memory/storage/storage-audit.log has zero entries dated 2026-09-18, consistent with the implementer recording no lesson and the planner performing only reads. Context-boundary procedure from CLAUDE.md was performed at the start of this phase. Human approved the commit with the message 'commit' after the run summary. Before committing, OrderController.java line endings were restored to CRLF (matching the index) so the commit contains only the intended change; the LF working-tree state noted in orchestrator_diff_review was therefore not committed."
+  "notes": "human_approved=false: the pre-commit human checkpoint (plan, diff, test result) has been presented but approval has not been given, and nothing has been committed. escalated_to_human=false: the plan proposed no externally visible behavior change and no subagent exceeded its tool grant. Storage audit cross-check: .memory/storage/storage-audit.log has zero entries dated 2026-09-18, consistent with the implementer recording no lesson and the planner performing only reads. Context-boundary procedure from CLAUDE.md was performed at the start of this phase. Human approved the commit with the message 'commit' after the run summary. Before committing, OrderController.java line endings were restored to CRLF (matching the index) so the commit contains only the intended change; the LF working-tree state noted in orchestrator_diff_review was therefore not committed.",
+  "cost_measurement": {
+    "value_usd": 1.19,
+    "kind": "session_cumulative_upper_bound",
+    "isolated": false,
+    "note": "NOT an isolated measurement. $1.19 is the session-cumulative cost reported by the human, read after the task. Usage was not checked before DEV-02 started, and the session's wall time (48m52s) shows substantial other work happened first (eval-harness fixes, the DEV-01 transcript correction). The true cost of this run alone is unknown and lower than $1.19; the value is recorded so the budget check has a real number, not as a clean per-run measurement. A properly bracketed before/after /status delta should replace it on a future run."
+  }
 }
