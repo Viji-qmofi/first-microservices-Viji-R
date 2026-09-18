@@ -25,6 +25,29 @@ CLASSIFICATION_ORDER = ["public", "internal", "confidential", "secret"]
 FALLBACK_CLASSIFICATION = "secret"
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
+# Filler words dropped from the keyword fallback query. Without this, the
+# OR-joined FTS query matches nearly every chunk in a small corpus.
+# Kept conservative on purpose: no domain terms.
+KEYWORD_STOPWORDS = frozenset(
+    {
+        # articles
+        "a", "an", "the",
+        # be / have forms
+        "is", "are", "was", "were", "be", "been", "being", "am",
+        "do", "does", "did", "has", "have", "had",
+        # question words
+        "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
+        # demonstratives and pronouns
+        "this", "that", "these", "those", "it", "its", "i", "we", "you",
+        "they", "he", "she", "them", "our", "your",
+        # prepositions and conjunctions
+        "of", "for", "to", "in", "on", "at", "by", "with", "from", "as",
+        "into", "about", "and", "or", "but", "if", "so", "than", "not", "no",
+        # modals
+        "can", "could", "should", "would", "will", "may", "might", "must",
+    }
+)
+
 mcp = FastMCP("retrieval")
 
 
@@ -214,9 +237,15 @@ def build_index(conn: sqlite3.Connection, chunker: Callable[[str], list[str]]) -
 
 
 def fts_query(text: str) -> str:
-    """Turn free text into a safe FTS5 query matching exact tokens and words."""
+    """Turn free text into a safe FTS5 query matching exact tokens and words.
+
+    Tokens whose lowercased form is in KEYWORD_STOPWORDS are dropped. If every
+    token is a stopword (or there are no tokens), returns "" and the caller
+    treats that as no keyword matches.
+    """
     tokens = re.findall(r"[A-Za-z0-9_]+", text)
     tokens.extend(re.findall(r"[A-Za-z0-9]+", text))
+    tokens = [token for token in tokens if token.lower() not in KEYWORD_STOPWORDS]
     unique = sorted(set(tokens), key=lambda token: (-len(token), token.lower()))
     return " OR ".join(f'"{token}"' for token in unique)
 
