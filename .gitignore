@@ -2,3 +2,5 @@
 google_cred.json
 .memory/storage/
 .eval-artifacts/
+__pycache__/
+*.pyc
