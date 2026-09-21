@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
@@ -43,11 +43,18 @@ class OrderServiceImplTest {
 	@Mock
 	private IProductServiceFeignClient feignClient;
 
-	@InjectMocks
 	private OrderServiceImpl orderService;
+
+	private List<Long> recordedSleeps;
 
 	private Logger orderServiceLogger;
 	private ListAppender<ILoggingEvent> listAppender;
+
+	@BeforeEach
+	void setUpOrderService() {
+		recordedSleeps = new ArrayList<>();
+		orderService = new OrderServiceImpl(feignClient, recordedSleeps::add);
+	}
 
 	@BeforeEach
 	void setUpLogAppender() {
@@ -133,6 +140,7 @@ class OrderServiceImplTest {
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(result.getBody()).isEqualTo("Order placed successfully for Mobile");
 		verify(feignClient, times(3)).getById(1);
+		assertThat(recordedSleeps).isEqualTo(List.of(200L, 200L));
 	}
 
 	@Test
@@ -181,6 +189,7 @@ class OrderServiceImplTest {
 				});
 
 		verify(feignClient, times(3)).getById(1);
+		assertThat(recordedSleeps).isEqualTo(List.of(200L, 200L));
 	}
 
 	@Test
@@ -275,6 +284,7 @@ class OrderServiceImplTest {
 		ILoggingEvent event = listAppender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.WARN);
 		assertThat(event.getFormattedMessage()).contains("getById").contains("42").contains("unreachable");
+		assertThat(recordedSleeps).isEqualTo(List.of(200L, 200L));
 	}
 
 	@Test
@@ -327,6 +337,7 @@ class OrderServiceImplTest {
 
 		assertThat(result).isEqualTo(products);
 		verify(feignClient, times(3)).getAllProducts();
+		assertThat(recordedSleeps).isEqualTo(List.of(200L, 200L));
 	}
 
 	@Test
@@ -344,6 +355,7 @@ class OrderServiceImplTest {
 				});
 
 		verify(feignClient, times(3)).getAllProducts();
+		assertThat(recordedSleeps).isEqualTo(List.of(200L, 200L));
 	}
 
 	@Test
@@ -456,6 +468,7 @@ class OrderServiceImplTest {
 		ILoggingEvent event = listAppender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.WARN);
 		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("unreachable");
+		assertThat(recordedSleeps).isEqualTo(List.of(200L, 200L));
 	}
 
 	@Test

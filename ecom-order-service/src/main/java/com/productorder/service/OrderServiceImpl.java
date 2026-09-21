@@ -1,10 +1,12 @@
 package com.productorder.service;
 
 import java.util.List;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -27,9 +29,29 @@ public class OrderServiceImpl implements IOrderService{
 	private static final long RETRY_BACKOFF_MS = 200;
 
 	private final IProductServiceFeignClient feignClient;
+	// Backoff seam: production uses a real Thread.sleep; tests inject a recording no-op so retry tests
+	// do not pay the real delay.
+	private final LongConsumer sleeper;
 
+	@Autowired
 	public OrderServiceImpl(IProductServiceFeignClient feignClient) {
+		this(feignClient, OrderServiceImpl::sleepMillis);
+	}
+
+	// Package-private: only for tests in the same package.
+	OrderServiceImpl(IProductServiceFeignClient feignClient, LongConsumer sleeper) {
 		this.feignClient = feignClient;
+		this.sleeper = sleeper;
+	}
+
+	// A LongConsumer cannot throw the checked InterruptedException, so restore the interrupt flag here;
+	// callWithRetry checks the flag after each sleep and stops retrying if it is set.
+	private static void sleepMillis(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException interruptedEx) {
+			Thread.currentThread().interrupt();
+		}
 	}
 
 	// Manual bounded retry loop for feign.RetryableException (true "service unreachable" case: no HTTP
@@ -49,10 +71,8 @@ public class OrderServiceImpl implements IOrderService{
 			} catch (RetryableException ex) {
 				lastException = ex;
 				if (attempt < MAX_ATTEMPTS) {
-					try {
-						Thread.sleep(RETRY_BACKOFF_MS);
-					} catch (InterruptedException interruptedEx) {
-						Thread.currentThread().interrupt();
+					sleeper.accept(RETRY_BACKOFF_MS);
+					if (Thread.currentThread().isInterrupted()) {
 						break;
 					}
 				}
