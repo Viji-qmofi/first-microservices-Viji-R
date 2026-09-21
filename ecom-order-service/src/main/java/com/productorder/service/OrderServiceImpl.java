@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.productorder.feign.IProductServiceFeignClient;
 import com.productorder.model.Product;
+import com.productorder.model.RetryConfig;
 
 import feign.FeignException;
 import feign.RetryableException;
@@ -149,6 +150,12 @@ public class OrderServiceImpl implements IOrderService{
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
 					"Unable to process request due to an internal error");
 		}
+	}
+
+	// Read-only view of the retry constants above; no Feign call and no logging.
+	@Override
+	public RetryConfig getRetryConfig() {
+		return new RetryConfig(MAX_ATTEMPTS, RETRY_BACKOFF_MS);
 	}
 
 }

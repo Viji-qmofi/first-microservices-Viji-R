@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.productorder.model.Product;
+import com.productorder.model.RetryConfig;
 import com.productorder.service.IOrderService;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +64,19 @@ class OrderControllerTest {
 		assertThatThrownBy(() -> controller.placeOrder(404)).isSameAs(thrown);
 
 		verify(mockService, times(1)).placeOrder(404);
+	}
+
+	@Test
+	void getRetryConfig_delegatesToConstructorSuppliedService_whenCalled() {
+		OrderController controller = new OrderController(mockService);
+		RetryConfig expected = new RetryConfig(3, 200);
+		when(mockService.getRetryConfig()).thenReturn(expected);
+
+		RetryConfig result = controller.getRetryConfig();
+
+		assertThat(result).isSameAs(expected);
+		verify(mockService, times(1)).getRetryConfig();
+		verifyNoMoreInteractions(mockService);
 	}
 
 }

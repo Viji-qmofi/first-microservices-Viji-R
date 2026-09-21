@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.productorder.model.Product;
+import com.productorder.model.RetryConfig;
 import com.productorder.service.IOrderService;
 
 @RestController
@@ -31,6 +32,11 @@ public class OrderController {
 	@GetMapping("/orders/view-products")
 	List<Product> viewProducts(){
 		return orderService.viewAllProducts();
+	}
+	
+	@GetMapping("/orders/retry-config")
+	RetryConfig getRetryConfig() {
+		return orderService.getRetryConfig();
 	}
 	
 }

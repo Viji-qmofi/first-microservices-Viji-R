@@ -26,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.productorder.feign.IProductServiceFeignClient;
 import com.productorder.model.Product;
+import com.productorder.model.RetryConfig;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -582,6 +583,15 @@ class OrderServiceImplTest {
 		Request request = Request.create(Request.HttpMethod.GET, url,
 				Collections.emptyMap(), null, StandardCharsets.UTF_8, null);
 		return new RetryableException(-1, "connection timed out", Request.HttpMethod.GET, (Long) null, request);
+	}
+
+	@Test
+	void getRetryConfig_returnsApprovedConstants_whenCalled() {
+		RetryConfig config = orderService.getRetryConfig();
+
+		assertThat(config.getMaxAttempts()).isEqualTo(3);
+		assertThat(config.getBackoffMs()).isEqualTo(200L);
+		verifyNoInteractions(feignClient);
 	}
 
 }
