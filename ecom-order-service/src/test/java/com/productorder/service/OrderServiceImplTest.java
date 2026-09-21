@@ -2,8 +2,10 @@ package com.productorder.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -435,6 +437,49 @@ class OrderServiceImplTest {
 		assertThat(event.getFormattedMessage()).contains("getAllProducts").contains("400");
 
 		verify(feignClient, times(1)).getAllProducts();
+	}
+
+	@Test
+	void placeOrder_usesConstructorSuppliedClient_whenBuiltExplicitly() {
+		OrderServiceImpl service = new OrderServiceImpl(feignClient);
+		Product product = new Product("Mobile", 1, "Samsung", "Electronics");
+		when(feignClient.getById(1)).thenReturn(product);
+
+		ResponseEntity<String> result = service.placeOrder(1);
+
+		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(result.getBody()).isEqualTo("Order placed successfully for Mobile");
+		verify(feignClient, times(1)).getById(1);
+	}
+
+	@Test
+	void viewAllProducts_usesConstructorSuppliedClient_whenBuiltExplicitly() {
+		OrderServiceImpl service = new OrderServiceImpl(feignClient);
+		List<Product> products = List.of(new Product("Mobile", 1, "Samsung", "Electronics"));
+		when(feignClient.getAllProducts()).thenReturn(products);
+
+		List<Product> result = service.viewAllProducts();
+
+		assertThat(result).isEqualTo(products);
+		verify(feignClient, times(1)).getAllProducts();
+	}
+
+	@Test
+	void placeOrder_reachesOnlyOwnClient_whenTwoInstancesBuiltWithDistinctClients() {
+		IProductServiceFeignClient clientA = mock(IProductServiceFeignClient.class);
+		IProductServiceFeignClient clientB = mock(IProductServiceFeignClient.class);
+		OrderServiceImpl serviceA = new OrderServiceImpl(clientA);
+		OrderServiceImpl serviceB = new OrderServiceImpl(clientB);
+		when(clientA.getById(1)).thenReturn(new Product("Mobile", 1, "Samsung", "Electronics"));
+		when(clientB.getById(2)).thenReturn(new Product("Laptop", 2, "Dell", "Electronics"));
+
+		assertThat(serviceA.placeOrder(1).getBody()).isEqualTo("Order placed successfully for Mobile");
+		verify(clientA, times(1)).getById(1);
+		verifyNoInteractions(clientB);
+
+		assertThat(serviceB.placeOrder(2).getBody()).isEqualTo("Order placed successfully for Laptop");
+		verify(clientB, times(1)).getById(2);
+		verify(clientA, times(1)).getById(1);
 	}
 
 	private FeignException notFoundException(int productId) {
