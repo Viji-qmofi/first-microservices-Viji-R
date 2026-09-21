@@ -74,6 +74,53 @@ class OrderServiceImplTest {
 	}
 
 	@Test
+	void placeOrder_throwsBadRequest_whenProductIdIsZero() {
+		assertThatThrownBy(() -> orderService.placeOrder(0))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+					assertThat(rse.getReason()).isEqualTo("productId must be a positive integer");
+				});
+
+		verifyNoInteractions(feignClient);
+	}
+
+	@Test
+	void placeOrder_throwsBadRequest_whenProductIdIsNegative() {
+		assertThatThrownBy(() -> orderService.placeOrder(-1))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+					assertThat(rse.getReason()).isEqualTo("productId must be a positive integer");
+				});
+
+		verifyNoInteractions(feignClient);
+	}
+
+	@Test
+	void placeOrder_throwsBadRequest_whenProductIdIsIntegerMinValue() {
+		assertThatThrownBy(() -> orderService.placeOrder(Integer.MIN_VALUE))
+				.isInstanceOf(ResponseStatusException.class)
+				.satisfies(ex -> {
+					ResponseStatusException rse = (ResponseStatusException) ex;
+					assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+					assertThat(rse.getReason()).isEqualTo("productId must be a positive integer");
+				});
+
+		verifyNoInteractions(feignClient);
+	}
+
+	@Test
+	void placeOrder_logsNothing_whenProductIdIsInvalid() {
+		assertThatThrownBy(() -> orderService.placeOrder(-1)).isInstanceOf(ResponseStatusException.class);
+
+		assertThat(listAppender.list).isEmpty();
+		verifyNoInteractions(feignClient);
+	}
+
+	@Test
 	void placeOrder_succeedsAfterRetries_whenProductServiceUnreachableTwiceThenSucceeds() {
 		Product product = new Product("Mobile", 1, "Samsung", "Electronics");
 		when(feignClient.getById(1))

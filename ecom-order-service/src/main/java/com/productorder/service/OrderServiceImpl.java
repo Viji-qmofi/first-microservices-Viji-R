@@ -63,6 +63,12 @@ public class OrderServiceImpl implements IOrderService{
 
 	@Override
 	public ResponseEntity<String> placeOrder(int productId) {
+		// Client error raised before any downstream call: an invalid productId never reaches
+		// product-service, so no Feign call and no retry backoff occur. Fixed generic reason, not logged.
+		if (productId <= 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+					"productId must be a positive integer");
+		}
 		// check if the product by id is available if yes place order
 		//	else cancel the order
 		Product product;
