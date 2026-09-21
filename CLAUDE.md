@@ -113,6 +113,16 @@ When a task involves planning a code change and then implementing it (not a simp
 
 Before any implemented change is committed, present a run summary (plan, diff, test result) to the human for approval. This applies regardless of whether the run appeared to go smoothly -- approval is not conditional on anything going wrong.
 
+### Reviewer Conflict Resolution
+
+If more than one reviewer role runs against the same artifact and returns contradictory verdicts on the same review section (one `approve`, one `reject`), do not resolve this yourself by picking one verdict, averaging them, or treating the disagreement as informally settled by discussing it in chat. A genuine contradiction between two reviewers requires an explicit escalation step, recorded in the transcript:
+
+1. Add an `orchestrator_conflict_resolution` step to the run (`{"type": "orchestrator_step", "role": "orchestrator_conflict_resolution", "output": "<state which sections conflicted, and that this was escalated>"}`).
+2. Set the transcript's top-level `escalated_to_human` to `true`.
+3. Present the specific conflicting section(s) and both reviewers' full reasoning to the human, and wait for an explicit decision before proceeding -- do not continue the run on your own judgment about which reviewer is more correct.
+
+This applies only to genuine same-section contradictions. If two reviewers approve everything, or reject different, non-overlapping sections, that is not a conflict requiring escalation -- proceed normally.
+
 ### Evaluation Transcript Recording
 
 At the end of every task run (development or holdout), before ending the session, write a transcript to `.eval-artifacts/runs/<task_id>.json` (create the directory if it doesn't exist). `<task_id>` is the holdout task ID (e.g. `HO-01`) for a holdout run, or a short descriptive slug for a development run. This directory is under `/workspace` and therefore persists automatically via the standard mount -- do not rely on any other location.
