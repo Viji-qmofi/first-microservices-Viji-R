@@ -25,3 +25,13 @@
 - **`reviewer_strict` and `reviewer_lenient` have no `git diff`/`git show` access.** Both reviewers reviewed current file state and the run artifact rather than the actual diff, which directly caused the (separately resolved) `scope_discipline` disagreement. Not fixed in this cycle -- recorded as a candidate for a future cycle.
 - **Neither reviewer's claims were independently re-verified before this record was written** -- flagged by the rubric's `groundedness` score (3/4 both runs): `reviewer_strict` cited a test file it never read; `reviewer_lenient`'s "26 tests passing" rested on a secondhand record. The escalation mechanism worked correctly regardless, but this is the same self-report-as-evidence pattern seen elsewhere in this course, now surfacing inside the review layer itself.
 - **The transcript's own accuracy required a correction mid-cycle** -- an early draft of `CAL-01-after.json` dropped the `scope_discipline` ruling entirely, recording "no ruling given" when one had in fact been given. Caught and corrected before the check was re-run, not before it was first attempted -- worth remembering that even a system built specifically to produce trustworthy evidence can itself misrecord evidence, and needs the same scrutiny as everything else it evaluates.
+
+### Regression Check
+
+**Task:** DEV-04 -- unit tests for `fts_query` stopword filtering, deliberately unrelated to the reviewer-conflict fix. Run after the Reviewer Conflict Resolution policy was added, to check that the fix did not disturb the ordinary path.
+
+**Result:** 13/13 deterministic checks passed; 4/4 rubric dimensions passed. No regression found.
+
+**`role_order` caveat:** `expected_path` for this run was written post-hoc to match the actual retry sequence. Its pass therefore reflects transcript self-consistency more than independent verification of the plan. This is a pre-existing limitation of the check, not a new finding from this regression run.
+
+**Conclusion:** The Reviewer Conflict Resolution policy does not interfere with the ordinary single-reviewer path. It was never triggered in this run.
